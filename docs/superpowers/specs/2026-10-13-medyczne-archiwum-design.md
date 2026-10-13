@@ -1,6 +1,6 @@
 # Medyczne Archiwum — projekt rozwiązania
 
-**Status:** projekt zatwierdzony do przeglądu specyfikacji
+**Status:** zaakceptowana specyfikacja
 **Data:** 2026-10-13
 
 ## Cel
@@ -12,8 +12,8 @@ Aplikacja ma pomagać odnaleźć i zrozumieć treść własnych zapisów, a nie 
 ## Użytkownicy i granice dostępu
 
 - Aplikacja działa na jednym domowym komputerze i jest dostępna dla urządzeń w lokalnej sieci (LAN). Nie jest wystawiana do Internetu.
-- Każdy domownik ma odrębne konto oraz prywatny zbiór danych. Sam fakt bycia administratorem aplikacji nie daje dostępu do dokumentów ani pomiarów innych osób.
-- Początkowa konfiguracja tworzy administratora. Administrator może wystawiać jednorazowe zaproszenia do utworzenia kont, ale nie odczytuje danych medycznych.
+- Każdy domownik ma odrębne konto oraz prywatny zbiór danych. Administrator nie ma dostępu do dokumentów ani pomiarów innych osób w zwykłym interfejsie, API ani asystencie.
+- Początkowa konfiguracja tworzy administratora. Administrator może wystawiać jednorazowe zaproszenia do utworzenia kont, ale nie odczytuje danych medycznych przez zwykły interfejs aplikacji ani asystenta.
 - Właściciel danych może jawnie udostępnić wskazane materiały innemu kontu i cofnąć dostęp. Bez udostępnienia dane pozostają prywatne.
 - Hasła są przechowywane jako bezpieczne skróty, a sesje przeglądarki używają bezpiecznych ciasteczek. Ruch do aplikacji z urządzeń LAN jest chroniony przez HTTPS.
 - LM Studio nasłuchuje tylko na komputerze hostującym; aplikacja jest jedynym komponentem pośredniczącym w dostępie do modeli.
@@ -23,7 +23,7 @@ Aplikacja ma pomagać odnaleźć i zrozumieć treść własnych zapisów, a nie 
 1. Niezależne konta, logowanie, jednorazowe zaproszenia oraz jawne udostępnianie i cofanie dostępu do danych.
 2. Import PDF-ów, zdjęć i skanów, w tym recept, które w MVP są archiwizowane i przeszukiwane jako dokumenty. Użytkownik może dodać własny wpis tekstowy.
 3. Odczyt tekstu z PDF lub lokalny OCR zdjęć/skanów, z podglądem oryginału i wyniku rozpoznawania.
-4. Ręczne potwierdzanie profilu, typu i daty dokumentu przed zapisaniem go w archiwum i indeksie wyszukiwania.
+4. Ręczne potwierdzanie typu i daty dokumentu przed zapisaniem go w archiwum i indeksie wyszukiwania.
 5. Archiwum dokumentów z filtrami oraz osią czasu.
 6. Ręczne wpisy pomiarów: nazwa, wartość, jednostka, data/godzina i opcjonalna notatka; tabela i prosty wykres historii.
 7. Pytania do asystenta o dokumenty i pomiary, odpowiedzi z cytowaniami źródeł.
@@ -46,8 +46,8 @@ Nawigacja prowadzi do archiwum dokumentów (z kategorią recept), osi czasu, pom
 
 1. Użytkownik przesyła PDF lub obraz do aplikacji.
 2. Aplikacja sprawdza rzeczywisty format i konfigurowalny limit rozmiaru pliku, zapisuje oryginał poza katalogiem publicznych zasobów i rozpoczyna ekstrakcję tekstu. Dla skanów używa lokalnego OCR z obsługą języka polskiego.
-3. Użytkownik widzi oryginał, rozpoznany tekst oraz sugerowane metadane: osobę/archiwum, typ i datę.
-4. Użytkownik poprawia lub zatwierdza metadane. Dopiero zatwierdzony dokument staje się widoczny w archiwum i jest indeksowany.
+3. Użytkownik widzi oryginał, rozpoznany tekst oraz sugerowany typ i datę. Dokument zawsze pozostaje przypisany do konta, które wykonało import; osoba ani OCR nie mogą przenieść go do cudzego konta.
+4. Użytkownik poprawia lub zatwierdza typ i datę. Dopiero zatwierdzony dokument staje się widoczny w archiwum i jest indeksowany.
 5. Awaria lub niska pewność OCR jest widoczna; dokument nie jest po cichu traktowany jako poprawnie rozpoznany ani indeksowany bez potwierdzenia.
 
 ## Architektura logiczna
@@ -112,13 +112,13 @@ Każde zapytanie do dokumentów, pomiarów i RAG jest ograniczane do danych aktu
 - HTTPS chroni połączenie z aplikacją w sieci domowej. Każdy endpoint sprawdza tożsamość i uprawnienia niezależnie od ograniczeń interfejsu.
 - Pliki są przechowywane poza statycznymi zasobami webowymi i udostępniane wyłącznie przez endpoint sprawdzający uprawnienia. Logi aplikacji nie zapisują treści dokumentów, pomiarów ani pytań.
 - Komputer hostujący powinien mieć włączone szyfrowanie dysku (np. BitLocker) oraz aktualizacje systemu.
-- Ręczny backup obejmuje SQLite i oryginalne pliki w jednym zaszyfrowanym archiwum. Szyfrowanie używa uwierzytelnionego szyfru AES-256-GCM i hasła przetworzonego przez scrypt; format zawiera wersję, sól i nonce potrzebne do odtworzenia. Odtworzenie weryfikuje integralność przed zastąpieniem danych.
+- Ręczny backup obejmuje całą bazę SQLite i oryginalne pliki wszystkich profili w jednym zaszyfrowanym archiwum; tworzenie i odtwarzanie backupu jest dostępne administratorowi. Administrator, który zna hasło backupu, może po odszyfrowaniu uzyskać dostęp do danych profili. Jest to jawnie zaakceptowany wyjątek od prywatności między profilami i oznacza, że izolacja kont nie chroni przed administratorem kontrolującym pełny backup. Szyfrowanie używa uwierzytelnionego szyfru AES-256-GCM i hasła przetworzonego przez scrypt; format zawiera wersję, sól i nonce potrzebne do odtworzenia. Odtworzenie weryfikuje integralność przed zastąpieniem danych.
 - Oryginał dokumentu pozostaje dostępny nawet przy awarii ekstrakcji OCR, embeddingów lub LM Studio. Status przetwarzania można ponowić, a błędy są jawne.
 - Zmiany metadanych, indeksu i praw dostępu są transakcyjne lub mają bezpieczną kolejność, by błąd nie pozostawiał pozornie poprawnego, częściowo zapisanego dokumentu.
 
 ## Kryteria akceptacji
 
-1. Konto bez uprawnienia nie może odczytać ani wyszukać cudzych dokumentów lub pomiarów przez UI, API ani RAG.
+1. Konto bez uprawnienia nie może odczytać ani wyszukać cudzych dokumentów lub pomiarów przez zwykłe UI, API ani RAG. Jawnie zaakceptowany wyjątek: administrator z hasłem backupu może odczytać dane wszystkich profili po odszyfrowaniu pełnego backupu.
 2. Niepotwierdzony import nie pojawia się w archiwum ani wynikach wyszukiwania.
 3. Cytowanie w odpowiedzi otwiera właściwy dokument i stronę albo wskazany pomiar.
 4. Przy braku wystarczających źródeł, niskiej jakości OCR lub niedostępnym LM Studio aplikacja zgłasza ograniczenie i nie fabrykuje odpowiedzi.
