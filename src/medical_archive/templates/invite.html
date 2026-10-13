@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+  </head>
+  <body>
+    <main>
+      <h1>{{ title }}</h1>
+      {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+      {% if invitation_url %}
+        <p>Link jest ważny przez 24 godziny. Skopiuj go teraz — nie będzie ponownie wyświetlony.</p>
+        <p><a href="{{ invitation_url }}">{{ invitation_url }}</a></p>
+      {% else %}
+        <form action="/auth/invite" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Utwórz zaproszenie</button>
+        </form>
+      {% endif %}
+      <p><a href="/">Powrót</a></p>
+    </main>
+  </body>
+</html>
