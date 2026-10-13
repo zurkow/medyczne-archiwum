@@ -1,19 +1,33 @@
+import logging
 from datetime import date, datetime
 from pathlib import Path
+from time import perf_counter
 from uuid import uuid4
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from medical_archive.documents.models import Document
+from medical_archive.documents.extraction import ExtractionError
+from medical_archive.documents.metadata import MetadataSuggestion, suggest_metadata
+from medical_archive.documents.models import Document, DocumentPage
 from medical_archive.documents.storage import (
     validate_upload,
     write_document,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class DocumentPersistenceError(Exception):
     """Raised when a document record cannot be committed."""
+
+
+class DocumentProcessingError(Exception):
+    def __init__(self, code: str, message: str, status_code: int = 422) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.status_code = status_code
 
 
 def create_document(
@@ -66,5 +80,85 @@ def public_document(document: Document) -> dict[str, str | int | date | datetime
         "document_type": document.document_type,
         "document_date": document.document_date,
         "status": document.processing_status,
+        "ocr_status": document.ocr_status,
         "created_at": document.created_at,
     }
+
+
+def process_document(
+    session: Session,
+    document: Document,
+    *,
+    data_dir: Path,
+    extractor,
+    retry: bool = False,
+) -> tuple[Document, MetadataSuggestion]:
+    expected_status = "ocr_failed" if retry else "needs_review"
+    if document.processing_status != expected_status:
+        raise DocumentProcessingError(
+            "invalid_state",
+            "This document is not available for text extraction in its current state.",
+            409,
+        )
+
+    started = perf_counter()
+    path = data_dir / "documents" / document.storage_key
+    try:
+        pages = extractor.extract(path)
+    except ExtractionError as error:
+        document.processing_status = "ocr_failed"
+        document.ocr_status = "failed"
+        session.commit()
+        logger.warning(
+            "document_extraction_failed document_id=%s code=%s duration_ms=%d",
+            document.id,
+            error.code,
+            round((perf_counter() - started) * 1000),
+        )
+        raise DocumentProcessingError(error.code, error.message) from error
+    except Exception as error:
+        document.processing_status = "ocr_failed"
+        document.ocr_status = "failed"
+        session.commit()
+        logger.warning(
+            "document_extraction_failed document_id=%s code=%s duration_ms=%d",
+            document.id,
+            "extraction_failed",
+            round((perf_counter() - started) * 1000),
+        )
+        raise DocumentProcessingError(
+            "extraction_failed", "The document could not be processed."
+        ) from error
+
+    if not pages or not any(page.text.strip() for page in pages):
+        document.processing_status = "ocr_failed"
+        document.ocr_status = "failed"
+        session.commit()
+        logger.warning(
+            "document_extraction_failed document_id=%s code=%s duration_ms=%d",
+            document.id,
+            "empty_output",
+            round((perf_counter() - started) * 1000),
+        )
+        raise DocumentProcessingError("empty_output", "No readable text was found in the document.")
+
+    document.pages.clear()
+    document.pages.extend(
+        DocumentPage(
+            page_number=page.page_number,
+            text=page.text,
+            extraction_method=page.method,
+        )
+        for page in pages
+    )
+    document.ocr_status = "completed" if any(page.method == "ocr" for page in pages) else "text"
+    document.processing_status = "needs_review"
+    session.commit()
+    suggestion = suggest_metadata("\n".join(page.text for page in pages))
+    logger.info(
+        "document_extraction_completed document_id=%s code=%s duration_ms=%d",
+        document.id,
+        "ok",
+        round((perf_counter() - started) * 1000),
+    )
+    return document, suggestion

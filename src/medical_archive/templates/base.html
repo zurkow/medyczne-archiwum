@@ -12,6 +12,7 @@
       {% if user %}
         <nav aria-label="Nawigacja główna">
           <a aria-current="page" href="/">Strona główna</a>
+          <a href="/documents/ui">Dokumenty</a>
           {% if user.is_admin %}
             <a href="/auth/invite">Zaproszenia</a>
           {% endif %}
@@ -19,13 +20,16 @@
       {% endif %}
     </header>
     <main class="page-content">
-      <section class="panel" aria-labelledby="page-title">
-        <h1 id="page-title">{{ title }}</h1>
-        {% if user %}
-          <p class="account-summary">Zalogowano jako <strong>{{ user.email }}</strong>.</p>
-          <p>Dokumenty i pomiary będą dostępne po wdrożeniu tych modułów.</p>
-        {% endif %}
-      </section>
+      {% block content %}
+        <section class="panel" aria-labelledby="page-title">
+          <h1 id="page-title">{{ title }}</h1>
+          {% if user %}
+            <p class="account-summary">Zalogowano jako <strong>{{ user.email }}</strong>.</p>
+            <p>Przeglądaj prywatne dokumenty i potwierdzaj ich dane przed udostępnieniem.</p>
+            <p><a href="/documents/ui">Otwórz dokumenty</a></p>
+          {% endif %}
+        </section>
+      {% endblock %}
       {% if user %}
         <form action="/auth/logout" method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="panel" aria-labelledby="document-heading">
+    <p><a href="/documents/ui">← Wróć do dokumentów</a></p>
+    <h1 id="document-heading">{{ document.original_filename }}</h1>
+    <p>Status: <strong>{{ document.processing_status }}</strong></p>
+    {% if document.processing_status == "needs_review" and not document.pages %}
+      <form action="/documents/{{ document.id }}/process" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Rozpoznaj tekst</button>
+      </form>
+    {% elif document.processing_status == "ocr_failed" %}
+      <form action="/documents/{{ document.id }}/retry" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Ponów rozpoznawanie</button>
+      </form>
+    {% endif %}
+
+    <h3>Oryginał</h3>
+    <p><a href="/documents/{{ document.id }}/file">Pobierz oryginał</a></p>
+    <iframe
+      title="Oryginalny dokument"
+      src="/documents/{{ document.id }}/preview"
+      width="100%"
+      height="480"
+    ></iframe>
+
+    <h3>Tekst rozpoznany z dokumentu</h3>
+    {% if document.pages %}
+      {% for page in document.pages %}
+        <section aria-label="Strona {{ page.page_number }}">
+          <h4>Strona {{ page.page_number }}</h4>
+          <pre>{{ page.text }}</pre>
+        </section>
+      {% endfor %}
+      <p>
+        Sugestia typu:
+        <strong>{{ suggestion.document_type or "brak" }}</strong>;
+        sugestia daty:
+        <strong>{{ suggestion.document_date or "brak" }}</strong>.
+        Sugestie wymagają sprawdzenia.
+      </p>
+      {% if document.processing_status in ["needs_review", "index_failed"] %}
+        <form action="/documents/{{ document.id }}/approve" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="document-type">Typ dokumentu</label>
+          <select id="document-type" name="document_type">
+            <option value="">Nie określono</option>
+            {% for document_type in document_types %}
+              <option
+                value="{{ document_type }}"
+                {% if (document.document_type or suggestion.document_type) == document_type %}selected{% endif %}
+              >{{ document_type }}</option>
+            {% endfor %}
+          </select>
+          <label for="document-date">Data dokumentu</label>
+          <input
+            id="document-date"
+            name="document_date"
+            type="date"
+            value="{{ document.document_date or suggestion.document_date or '' }}"
+          >
+          <button type="submit">Zatwierdź i indeksuj</button>
+        </form>
+      {% endif %}
+    {% else %}
+      <p>Tekst nie został jeszcze rozpoznany.</p>
+    {% endif %}
+    {% if document.processing_status == "index_failed" %}
+      <form action="/documents/{{ document.id }}/retry" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Ponów indeksowanie</button>
+      </form>
+    {% endif %}
+  </section>
+{% endblock %}

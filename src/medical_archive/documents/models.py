@@ -1,7 +1,18 @@
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from medical_archive.db import Base
 
@@ -32,6 +43,36 @@ class Document(Base):
     processing_status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="needs_review", server_default="needs_review"
     )
+    ocr_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending", server_default="pending"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
     )
+    pages: Mapped[list["DocumentPage"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="DocumentPage.page_number",
+    )
+
+
+class DocumentPage(Base):
+    __tablename__ = "document_pages"
+    __table_args__ = (
+        UniqueConstraint("document_id", "page_number", name="uq_document_pages_document_page"),
+        CheckConstraint("page_number > 0", name="ck_document_pages_page_number_positive"),
+        CheckConstraint(
+            "extraction_method IN ('text', 'ocr')",
+            name="ck_document_pages_extraction_method",
+        ),
+        Index("ix_document_pages_document_id", "document_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[str] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    extraction_method: Mapped[str] = mapped_column(String(16), nullable=False)
+    document: Mapped[Document] = relationship(back_populates="pages")

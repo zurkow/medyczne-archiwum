@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="panel" aria-labelledby="documents-heading">
+    <h1 id="documents-heading">Twoje dokumenty</h1>
+    {% if documents %}
+      <ul>
+        {% for document in documents %}
+          <li>
+            <a href="/documents/{{ document.id }}/review">{{ document.filename }}</a>
+            — {{ document.status }}
+            {% if document.document_date %} — {{ document.document_date }}{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Nie masz jeszcze dokumentów.</p>
+    {% endif %}
+  </section>
+{% endblock %}
