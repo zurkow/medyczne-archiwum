@@ -11,12 +11,17 @@ from medical_archive.auth.dependencies import (
     get_current_user,
     require_resource_owner,
 )
-from medical_archive.auth.grants import create, revoke
+from medical_archive.auth.grants import (
+    GrantIndexSyncError,
+    create,
+    revoke,
+)
 from medical_archive.auth.service import verify_csrf
 from medical_archive.db import get_session
 from medical_archive.models import AccessGrant, LoginSession, User
 
 OwnerLookup = Callable[[Session, str], int | None]
+GrantRouteHook = Callable[[Request, Session, AccessGrant], None]
 
 
 class GrantRequest(BaseModel):
@@ -28,7 +33,13 @@ def _require_csrf(login_session: LoginSession, request: Request) -> None:
         raise HTTPException(status_code=403, detail="Invalid or missing CSRF token.")
 
 
-def create_grant_router(*, resource_type: str, get_owner_id: OwnerLookup) -> APIRouter:
+def create_grant_router(
+    *,
+    resource_type: str,
+    get_owner_id: OwnerLookup,
+    on_grant: GrantRouteHook | None = None,
+    on_revoke: GrantRouteHook | None = None,
+) -> APIRouter:
     """Build grant-management routes for a domain using its trusted owner lookup."""
     if not resource_type or len(resource_type) > 100:
         raise ValueError("Resource type must contain between 1 and 100 characters.")
@@ -53,16 +64,27 @@ def create_grant_router(*, resource_type: str, get_owner_id: OwnerLookup) -> API
         _owner_user_id: Annotated[int, Depends(require_owner)],
     ) -> dict[str, int | str]:
         _require_csrf(login_session, request)
-        grant = create(
-            session,
-            owner_user_id=user.id,
-            grantee_user_id=body.grantee_user_id,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            verify_owner=lambda candidate_id, candidate_user_id: (
-                get_owner_id(session, candidate_id) == candidate_user_id
-            ),
-        )
+        try:
+            grant = create(
+                session,
+                owner_user_id=user.id,
+                grantee_user_id=body.grantee_user_id,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                verify_owner=lambda candidate_id, candidate_user_id: (
+                    get_owner_id(session, candidate_id) == candidate_user_id
+                ),
+                on_grant=(
+                    (lambda active_grant: on_grant(request, session, active_grant))
+                    if on_grant is not None
+                    else None
+                ),
+            )
+        except GrantIndexSyncError as error:
+            raise HTTPException(
+                status_code=503,
+                detail="The resource grant could not be applied. Please try again.",
+            ) from error
         return {
             "id": grant.id,
             "resource_id": grant.resource_id,
@@ -92,6 +114,21 @@ def create_grant_router(*, resource_type: str, get_owner_id: OwnerLookup) -> API
         )
         if grant is None:
             raise HTTPException(status_code=404, detail="Resource grant not found.")
-        revoke(session, grant_id=grant.id, owner_user_id=owner_user_id)
+        try:
+            revoke(
+                session,
+                grant_id=grant.id,
+                owner_user_id=owner_user_id,
+                on_revoke=(
+                    (lambda active_grant: on_revoke(request, session, active_grant))
+                    if on_revoke is not None
+                    else None
+                ),
+            )
+        except GrantIndexSyncError as error:
+            raise HTTPException(
+                status_code=503,
+                detail="The resource grant could not be revoked. Please try again.",
+            ) from error
 
     return router

@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 from medical_archive.models import AccessGrant, User
 
 OwnerVerification = Callable[[str, int], bool]
+GrantIndexHook = Callable[[AccessGrant], None]
+
+
+class GrantIndexSyncError(RuntimeError):
+    """Raised when a document grant and its recipient index cannot stay atomic."""
 
 
 def visible_resource_ids(
@@ -76,6 +81,7 @@ def create(
     resource_type: str,
     resource_id: str | int,
     verify_owner: OwnerVerification,
+    on_grant: GrantIndexHook | None = None,
 ) -> AccessGrant:
     """Create an explicit grant only after the domain confirms the owner's resource."""
     normalized_resource_id = str(resource_id)
@@ -108,14 +114,36 @@ def create(
         resource_id=normalized_resource_id,
     )
     session.add(grant)
-    session.commit()
+    try:
+        if on_grant is not None:
+            on_grant(grant)
+        session.commit()
+    except Exception as error:
+        session.rollback()
+        if on_grant is not None:
+            raise GrantIndexSyncError("The document grant could not be applied.") from error
+        raise
     return grant
 
 
-def revoke(session: Session, *, grant_id: int, owner_user_id: int) -> None:
+def revoke(
+    session: Session,
+    *,
+    grant_id: int,
+    owner_user_id: int,
+    on_revoke: GrantIndexHook | None = None,
+) -> None:
     """Immediately remove a grant when requested by its original resource owner."""
     grant = session.get(AccessGrant, grant_id)
     if grant is None or grant.owner_user_id != owner_user_id:
         raise HTTPException(status_code=404, detail="Resource grant not found.")
-    session.delete(grant)
-    session.commit()
+    try:
+        if on_revoke is not None:
+            on_revoke(grant)
+        session.delete(grant)
+        session.commit()
+    except Exception as error:
+        session.rollback()
+        if on_revoke is not None:
+            raise GrantIndexSyncError("The document grant could not be revoked.") from error
+        raise

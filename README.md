@@ -98,3 +98,19 @@ PyMuPDF, Tesseract wraz z `pol.traineddata` oraz nazwy modeli z
 bez treści dokumentu. Brak Tesseracta, danych polskiego OCR, LM Studio lub
 załadowanego modelu jest jawnie oznaczany jako brak wymagania i kończy narzędzie
 kodem 1; nie jest przedstawiany jako udana konfiguracja.
+
+Indeksowanie wysyła tekst wyłącznie do lokalnego endpointu embeddingów LM Studio
+(`MEDICAL_ARCHIVE_LM_STUDIO_BASE_URL`, domyślnie
+`http://127.0.0.1:1234/v1`). Wybierz model zgodny z wymiarem 768 i ustaw jego
+identyfikator dokładnie tak, jak pokazuje LM Studio, przez
+`MEDICAL_ARCHIVE_EMBEDDING_MODEL` (domyślnie `nomic-embed-text-v1.5`). Aplikacja
+odrzuca endpoint spoza loopback oraz nie zapisuje treści dokumentu ani wektorów
+w logach.
+
+Fragmentowanie nie pobiera ani nie wysyła tekstu do zewnętrznego tokenizera.
+Ponieważ tokenizer modelu nie jest częścią lokalnych zależności, używa
+deterministycznego lokalnego przybliżenia: ciągi Unicode złożone z liter/cyfr
+dzieli na jednostki po maksymalnie cztery znaki, a każdą interpunkcję liczy jako
+jedną jednostkę. To jawne przybliżenie, a nie deklaracja zgodności z tokenizerem
+modelu. Fragmenty mają limit 500 takich jednostek i overlap 80; granice stron
+pozostają zachowane.

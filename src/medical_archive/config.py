@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     session_secret: str | None = None
     data_dir: Path = Path.home() / ".medical-archive"
     database_url: str | None = None
+    lm_studio_base_url: str = "http://127.0.0.1:1234/v1"
+    embedding_model: str = "nomic-embed-text-v1.5"
 
     def __init__(self, *, testing: bool = False, **values: object) -> None:
         super().__init__(**values)
@@ -26,6 +28,13 @@ class Settings(BaseSettings):
     def validate_session_secret(cls, value: str | None) -> str | None:
         if value is not None and (not value.strip() or len(value.encode("utf-8")) < 32):
             raise ValueError("session_secret must contain at least 32 bytes.")
+        return value
+
+    @field_validator("embedding_model")
+    @classmethod
+    def validate_embedding_model(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("embedding_model must name a local embedding model.")
         return value
 
     @field_validator("data_dir")

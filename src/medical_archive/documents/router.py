@@ -24,13 +24,13 @@ from medical_archive.documents.models import Document
 from medical_archive.documents.review import (
     ALLOWED_DOCUMENT_TYPES,
     DocumentReviewError,
-    UnavailableDocumentIndexer,
     approve_document,
 )
 from medical_archive.documents.service import (
     DocumentPersistenceError,
     DocumentProcessingError,
     create_document,
+    create_document_indexer,
     public_document,
 )
 from medical_archive.documents.service import (
@@ -41,7 +41,7 @@ from medical_archive.documents.storage import (
     UploadError,
     read_multipart_file,
 )
-from medical_archive.models import LoginSession, User
+from medical_archive.models import AccessGrant, LoginSession, User
 from medical_archive.web.templates import render_template
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -68,10 +68,6 @@ _require_document_access = require_resource_access(
 _require_document_owner = require_resource_owner(
     resource_type="document",
     get_owner_id=_lookup_owner_id,
-)
-grant_router = create_grant_router(
-    resource_type="document",
-    get_owner_id=_lookup_grantable_owner_id,
 )
 
 
@@ -144,8 +140,37 @@ def _suggestion_for_document(document: Document) -> MetadataSuggestion:
     return suggest_metadata("\n".join(page.text for page in document.pages))
 
 
-def _indexer_for_request(request: Request):
-    return getattr(request.app.state, "document_indexer", UnavailableDocumentIndexer())
+def _indexer_for_request(request: Request, session: Session):
+    configured_indexer = getattr(request.app.state, "document_indexer", None)
+    if configured_indexer is not None:
+        return configured_indexer
+    return create_document_indexer(session)
+
+
+def _apply_document_grant(request: Request, session: Session, grant: AccessGrant) -> None:
+    document = session.get(Document, grant.resource_id)
+    indexer = _indexer_for_request(request, session)
+    apply_grant = getattr(indexer, "apply_grant", None)
+    if document is not None and apply_grant is not None:
+        apply_grant(document, grant)
+
+
+def _remove_document_grant(request: Request, session: Session, grant: AccessGrant) -> None:
+    indexer = _indexer_for_request(request, session)
+    remove_from_partition = getattr(indexer, "remove_from_partition", None)
+    if remove_from_partition is not None:
+        remove_from_partition(
+            owner_id=grant.grantee_user_id,
+            document_id=grant.resource_id,
+        )
+
+
+grant_router = create_grant_router(
+    resource_type="document",
+    get_owner_id=_lookup_grantable_owner_id,
+    on_grant=_apply_document_grant,
+    on_revoke=_remove_document_grant,
+)
 
 
 def _extractor_for_request(request: Request):
@@ -295,7 +320,7 @@ async def retry_document_processing(
                 document,
                 document_type=document.document_type,
                 document_date=document.document_date,
-                indexer=_indexer_for_request(request),
+                indexer=_indexer_for_request(request, session),
             )
         except DocumentReviewError as error:
             return _workflow_error(error, document.processing_status)
@@ -348,7 +373,7 @@ async def approve_document_metadata(
             document,
             document_type=document_type,
             document_date=document_date,
-            indexer=_indexer_for_request(request),
+            indexer=_indexer_for_request(request, session),
         )
     except DocumentReviewError as error:
         return _workflow_error(error, document.processing_status)

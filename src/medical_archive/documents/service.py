@@ -7,6 +7,7 @@ from uuid import uuid4
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from medical_archive.config import Settings
 from medical_archive.documents.extraction import ExtractionError
 from medical_archive.documents.metadata import MetadataSuggestion, suggest_metadata
 from medical_archive.documents.models import Document, DocumentPage
@@ -14,6 +15,9 @@ from medical_archive.documents.storage import (
     validate_upload,
     write_document,
 )
+from medical_archive.rag.embeddings import EmbeddingClient
+from medical_archive.rag.index import DocumentVectorIndexer
+from medical_archive.rag.models import EMBEDDING_DIMENSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +32,16 @@ class DocumentProcessingError(Exception):
         self.code = code
         self.message = message
         self.status_code = status_code
+
+
+def create_document_indexer(session: Session) -> DocumentVectorIndexer:
+    settings = Settings(testing=True)
+    embedder = EmbeddingClient(
+        model=settings.embedding_model,
+        dimensions=EMBEDDING_DIMENSIONS,
+        base_url=settings.lm_studio_base_url,
+    )
+    return DocumentVectorIndexer(session, embedder=embedder)
 
 
 def create_document(
