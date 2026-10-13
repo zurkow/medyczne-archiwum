@@ -1,13 +1,15 @@
 # Medyczne Archiwum
 
-Minimalny fundament prywatnego archiwum medycznego. Aplikacja udostępnia na tym
-etapie jedynie endpoint zdrowia; konta i pozostałe funkcje są planowane.
+Prywatne archiwum medyczne z kontami domowników i jawnymi uprawnieniami do
+rekordów. Administrator może zarządzać zaproszeniami, ale nie otrzymuje dostępu
+do prywatnych zasobów użytkowników. Moduły dokumentów i pomiarów nie są jeszcze
+dostępne.
 
 ## Wymagania
 
 - Python 3.12
 
-## Środowisko deweloperskie
+## Konfiguracja i uruchomienie
 
 W katalogu repozytorium utwórz i aktywuj wirtualne środowisko, a następnie
 zainstaluj pakiet wraz z narzędziami deweloperskimi:
@@ -18,7 +20,33 @@ py -3.12 -m venv .venv
 python -m pip install -e ".[dev]"
 ```
 
-Uruchom testy i sprawdzenia jakości:
+Ustaw unikatowy sekret sesji (co najmniej 32 losowe bajty zakodowane jako
+tekst). Nie zapisuj go w repozytorium:
+
+```powershell
+$env:MEDICAL_ARCHIVE_SESSION_SECRET = (python -c "import secrets; print(secrets.token_urlsafe(32))")
+```
+
+Aplikacja domyślnie przechowuje bazę SQLite w katalogu danych użytkownika.
+Utwórz schemat i skonfiguruj pierwsze konto administratora:
+
+```powershell
+python -m alembic upgrade head
+python -m medical_archive.auth.bootstrap --email admin@example.test
+```
+
+Polecenie bootstrap pobiera hasło interaktywnie i może utworzyć wyłącznie
+pierwszego administratora. Uruchom serwer:
+
+```powershell
+python -m uvicorn medical_archive.main:app
+```
+
+Strona logowania jest dostępna pod adresem `http://127.0.0.1:8000/auth/login`;
+endpoint `GET /health` zwraca `{"status": "ok"}`. Przy pierwszym logowaniu
+administrator może utworzyć jednorazowy link zaproszenia dla kolejnego konta.
+
+## Testy i kontrole jakości
 
 ```powershell
 python -m pytest -q
@@ -26,17 +54,11 @@ python -m ruff check .
 python -m ruff format --check .
 ```
 
-Serwer deweloperski można uruchomić poleceniem:
-
-```powershell
-python -m uvicorn medical_archive.main:app
-```
-
-Endpoint `GET /health` zwraca `{"status": "ok"}`.
-
 **Nie umieszczaj w repozytorium prawdziwych danych medycznych ani danych
-użytkowników.** Ten wczesny szkielet nie jest przygotowany do przechowywania
-prawdziwych danych medycznych.
+użytkowników.** Aplikacja nie jest gotowa do przechowywania prawdziwych danych
+medycznych, dopóki nie zostanie skonfigurowane HTTPS/TLS i sprawdzony proces
+tworzenia oraz odtwarzania kopii zapasowych. Lokalny serwer deweloperski nie
+zapewnia tych zabezpieczeń.
 
 ## Opcjonalne lokalne OCR i wyszukiwanie wektorowe
 

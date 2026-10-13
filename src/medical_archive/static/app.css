@@ -1,0 +1,155 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1f2937;
+  background: #f3f6fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 20rem;
+  min-height: 100vh;
+  margin: 0;
+  color: #1f2937;
+  background: #f3f6fa;
+  line-height: 1.6;
+}
+
+a {
+  color: #174ea6;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+a:hover {
+  color: #123b7a;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #174ea6;
+  outline-offset: 3px;
+}
+
+.site-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: #ffffff;
+  background: #16324f;
+}
+
+.brand {
+  width: fit-content;
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.site-header nav a {
+  color: #ffffff;
+}
+
+.site-header a:focus-visible {
+  outline-color: #ffffff;
+}
+
+.page-content {
+  width: min(100% - 2rem, 48rem);
+  margin: 1.5rem auto;
+}
+
+.panel {
+  padding: 1.25rem;
+  border: 1px solid #c6d0dc;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  box-shadow: 0 0.25rem 1rem rgb(22 50 79 / 8%);
+}
+
+h1 {
+  margin-top: 0;
+  color: #16324f;
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  line-height: 1.25;
+}
+
+.account-summary {
+  overflow-wrap: anywhere;
+}
+
+form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 32rem;
+  margin-top: 1.25rem;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #66758a;
+  border-radius: 0.35rem;
+  color: #1f2937;
+  background: #ffffff;
+  font: inherit;
+}
+
+button {
+  width: fit-content;
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 0.35rem;
+  color: #ffffff;
+  background: #174ea6;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #123b7a;
+}
+
+[role="alert"] {
+  padding: 0.75rem;
+  border-left: 0.25rem solid #a12622;
+  color: #7a1b18;
+  background: #fff1f0;
+}
+
+@media (min-width: 42rem) {
+  .site-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: max(1.5rem, calc((100vw - 64rem) / 2));
+  }
+
+  .page-content {
+    margin-top: 2.5rem;
+  }
+
+  .panel {
+    padding: 2rem;
+  }
+}
