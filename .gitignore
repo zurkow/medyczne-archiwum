@@ -1,0 +1,31 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.env
+
+# Local application data and user-provided files
+data/
+.medical-archive/
+uploads/
+user_files/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Secrets, certificates, and backups
+*.key
+*.pem
+*.crt
+*.cer
+*.p12
+*.pfx
+certs/
+backups/

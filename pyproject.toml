@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medyczne-archiwum"
+version = "0.1.0"
+description = "Private medical archive for household accounts"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic",
+    "argon2-cffi",
+    "fastapi",
+    "jinja2",
+    "pydantic-settings",
+    "sqlalchemy>=2,<3",
+    "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx",
+    "pytest",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+exclude = ["docs"]
+line-length = 100

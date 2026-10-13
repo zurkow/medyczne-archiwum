@@ -1,0 +1,1 @@
+"""Medyczne Archiwum application package."""
