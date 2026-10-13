@@ -24,6 +24,10 @@ dev = [
     "pytest",
     "ruff",
 ]
+local-ai = [
+    "pymupdf",
+    "sqlite-vec",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
