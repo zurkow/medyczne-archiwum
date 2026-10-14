@@ -1,26 +1,38 @@
 import hmac
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
 from medical_archive.auth.dependencies import get_authenticated_session, require_admin
 from medical_archive.auth.passwords import verify_password
 from medical_archive.auth.service import rotate_csrf, validate_password, verify_csrf
+from medical_archive.backup.crypto import InvalidBackup
+from medical_archive.backup.maintenance import (
+    DRAIN_TIMEOUT_SECONDS,
+    MaintenanceState,
+    maintenance_page,
+)
 from medical_archive.backup.service import (
     BackupBusyError,
     BackupService,
     BackupSourceError,
     BackupTooLargeError,
+    MissingAdministratorError,
+    RestoreFailedError,
+    RestoreRollbackFailedError,
+    UnsupportedBackupRevisionError,
     backup_operation_lock,
 )
 from medical_archive.db import get_session
+from medical_archive.documents.storage import UploadError, read_multipart_form
 from medical_archive.models import LoginSession, User
 from medical_archive.web.forms import read_form_fields
 from medical_archive.web.templates import render_template
@@ -59,6 +71,8 @@ RESTORE_FAILED = (
 EXPORT_SOURCE_FAILED = "Nie można utworzyć kopii. Szczegóły zapisano w dzienniku aplikacji."
 
 _BACKUP_TEMP_DIR = ".backup-tmp"
+_UPLOAD_NAME = "upload.marchive"
+_RESTORE_TEXT_FIELDS = frozenset({"csrf_token", "backup_password", "admin_password", "confirm"})
 _MIB = 1024 * 1024
 _GIB = 1024 * _MIB
 
@@ -139,6 +153,131 @@ async def export_backup(
         headers={"Cache-Control": "no-store"},
         background=BackgroundTask(_remove_file, destination),
     )
+
+
+@router.post("/restore")
+async def restore_backup(
+    request: Request,
+    admin: Annotated[User, Depends(require_admin)],
+    login_session: Annotated[LoginSession, Depends(get_authenticated_session)],
+    database: Annotated[Session, Depends(get_session)],
+):
+    service = _backup_service(request)
+    try:
+        with backup_operation_lock():
+            operation_dir = service.new_operation_dir()
+            try:
+                return await _restore_from_upload(
+                    request,
+                    database,
+                    service=service,
+                    admin=admin,
+                    login_session=login_session,
+                    upload_path=operation_dir / _UPLOAD_NAME,
+                )
+            finally:
+                service.discard(operation_dir)
+    except BackupBusyError:
+        return _render_backup_page(
+            request,
+            database,
+            admin=admin,
+            login_session=login_session,
+            status_code=409,
+            restore_alert=OPERATION_BUSY,
+        )
+
+
+async def _restore_from_upload(
+    request: Request,
+    database: Session,
+    *,
+    service: BackupService,
+    admin: User,
+    login_session: LoginSession,
+    upload_path: Path,
+):
+    maintenance: MaintenanceState = request.app.state.maintenance
+
+    def render_restore_error(
+        status_code: int, alert: str, errors: dict[str, str] | None = None
+    ) -> HTMLResponse:
+        return _render_backup_page(
+            request,
+            database,
+            admin=admin,
+            login_session=login_session,
+            status_code=status_code,
+            restore_alert=alert,
+            restore_errors=errors,
+        )
+
+    def require_csrf(fields: Mapping[str, str]) -> None:
+        if not verify_csrf(login_session, fields.get("csrf_token")):
+            raise HTTPException(status_code=403, detail="Invalid or missing CSRF token.")
+
+    try:
+        form = await read_multipart_form(
+            request,
+            text_fields=_RESTORE_TEXT_FIELDS,
+            file_field="backup_file",
+            destination=upload_path,
+            max_file_bytes=service.max_bytes,
+            before_file=require_csrf,
+        )
+    except UploadError as error:
+        if error.status_code == 413:
+            message = RESTORE_TOO_LARGE.format(label=_size_label(service.max_bytes))
+            return render_restore_error(413, message, {"restore-file": message})
+        return render_restore_error(415 if error.status_code == 415 else 400, RESTORE_SUMMARY)
+
+    errors: dict[str, str] = {}
+    if form.file_size == 0:
+        errors["restore-file"] = RESTORE_FILE_MISSING
+    if form.fields.get("confirm") != "yes":
+        errors["restore-confirm"] = RESTORE_CONFIRMATION_MISSING
+    if errors:
+        return render_restore_error(400, RESTORE_SUMMARY, errors)
+    if not verify_password(admin.password_hash, form.fields.get("admin_password", "")):
+        return render_restore_error(
+            403, RESTORE_SUMMARY, {"restore-admin-password": WRONG_ADMIN_PASSWORD}
+        )
+
+    try:
+        staged = await run_in_threadpool(
+            service.stage_restore, upload_path, form.fields.get("backup_password", "")
+        )
+    except UnsupportedBackupRevisionError:
+        return render_restore_error(422, RESTORE_UNSUPPORTED_REVISION)
+    except MissingAdministratorError:
+        return render_restore_error(422, RESTORE_MISSING_ADMINISTRATOR)
+    except InvalidBackup:
+        return render_restore_error(422, RESTORE_INVALID_BACKUP)
+    except RestoreFailedError:
+        return render_restore_error(500, RESTORE_FAILED)
+
+    database.commit()
+    maintenance.enter()
+    if not await maintenance.wait_until_drained(timeout_seconds=DRAIN_TIMEOUT_SECONDS):
+        maintenance.exit()
+        return render_restore_error(500, RESTORE_FAILED)
+    try:
+        await run_in_threadpool(service.apply_restore, staged)
+    except RestoreRollbackFailedError:
+        return maintenance_page(status_code=500, rollback_failed=True)
+    except RestoreFailedError:
+        maintenance.exit()
+        return render_restore_error(500, RESTORE_FAILED)
+    maintenance.exit()
+    response = RedirectResponse("/auth/login?restored=1", status_code=303)
+    response.delete_cookie(
+        "session",
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
+    return response
 
 
 def _export_field_errors(

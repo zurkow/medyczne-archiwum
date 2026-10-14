@@ -5,6 +5,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from medical_archive.auth.router import router as auth_router
+from medical_archive.backup.maintenance import MaintenanceMiddleware, MaintenanceState
 from medical_archive.backup.router import router as backup_router
 from medical_archive.backup.service import BackupService, recover_backup_state
 from medical_archive.config import Settings
@@ -28,6 +29,7 @@ def create_app(*, testing: bool = False, settings: Settings | None = None) -> Fa
         openapi_url=None,
     )
     app.state.data_dir = settings.data_dir
+    app.state.maintenance = MaintenanceState()
     if not testing:
         recover_backup_state(data_dir=settings.data_dir, database_url=settings.database_url)
         app.state.backup_service = BackupService(
@@ -50,6 +52,7 @@ def create_app(*, testing: bool = False, settings: Settings | None = None) -> Fa
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    app.add_middleware(MaintenanceMiddleware, state=app.state.maintenance)
     if settings.environment == "production":
         app.add_middleware(
             TrustedHostMiddleware,

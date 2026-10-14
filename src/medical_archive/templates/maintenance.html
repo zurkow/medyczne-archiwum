@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if rollback_failed %}Odtwarzanie nie powiodło się{% else %}Trwa odtwarzanie kopii zapasowej…{% endif %}</title>
+    <style>
+      body { margin: 0; background: #f3f6fa; color: #1f2937; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5; }
+      main { width: min(100% - 2rem, 40rem); margin: 4rem auto; }
+      h1 { color: #16324f; font-size: 1.75rem; }
+      a { color: #16324f; }
+    </style>
+  </head>
+  <body>
+    <main>
+      {% if rollback_failed %}
+        <h1>Odtwarzanie nie powiodło się</h1>
+        <p>Przywracanie poprzednich danych zostanie dokończone po ponownym uruchomieniu aplikacji. Uruchom aplikację ponownie i nie usuwaj katalogu danych.</p>
+      {% else %}
+        <h1>Trwa odtwarzanie kopii zapasowej…</h1>
+        <p>Aplikacja jest chwilowo niedostępna. Spróbuj ponownie za kilka minut.</p>
+        <p>Po zakończeniu wszyscy użytkownicy muszą zalogować się ponownie.</p>
+        <p><a href="">Odśwież stronę</a></p>
+      {% endif %}
+    </main>
+  </body>
+</html>
