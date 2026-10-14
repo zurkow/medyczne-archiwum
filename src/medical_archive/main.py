@@ -7,6 +7,8 @@ from medical_archive.auth.router import router as auth_router
 from medical_archive.config import Settings
 from medical_archive.documents.router import grant_router
 from medical_archive.documents.router import router as documents_router
+from medical_archive.measurements.router import grant_router as measurement_grant_router
+from medical_archive.measurements.router import router as measurements_router
 from medical_archive.rag.router import router as assistant_router
 from medical_archive.web.router import router as web_router
 
@@ -25,6 +27,8 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(documents_router)
     app.include_router(grant_router, prefix="/documents")
+    app.include_router(measurements_router)
+    app.include_router(measurement_grant_router, prefix="/measurements")
     app.include_router(assistant_router)
     app.include_router(web_router)
 
