@@ -1,0 +1,68 @@
+{% if chart %}
+  <figure class="trend-figure" aria-labelledby="{{ chart_id }}-caption">
+    <figcaption id="{{ chart_id }}-caption">
+      Trend: {{ chart.name }} ({{ chart.unit }}) — wyłącznie zapisane wartości
+    </figcaption>
+    <svg
+      class="trend-chart"
+      viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+      role="img"
+      aria-labelledby="{{ chart_id }}-title {{ chart_id }}-description"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <title id="{{ chart_id }}-title">Trend {{ chart.name }} w jednostce {{ chart.unit }}</title>
+      <desc id="{{ chart_id }}-description">
+        Oś pozioma przedstawia czas UTC od {{ chart.first_label }} do {{ chart.last_label }}.
+        Oś pionowa przedstawia wartość w {{ chart.unit }}, od {{ chart.min_label }} do {{ chart.max_label }}.
+        Dokładne dane są dostępne w tabeli poniżej.
+      </desc>
+      <line x1="{{ chart.left }}" y1="{{ chart.top }}" x2="{{ chart.left }}" y2="{{ chart.bottom }}" class="chart-axis" />
+      <line x1="{{ chart.left }}" y1="{{ chart.bottom }}" x2="{{ chart.right }}" y2="{{ chart.bottom }}" class="chart-axis" />
+      <text x="8" y="{{ chart.top + 4 }}" class="chart-label">{{ chart.max_label }}</text>
+      <text x="8" y="{{ chart.bottom }}" class="chart-label">{{ chart.min_label }}</text>
+      <text x="{{ chart.left }}" y="278" class="chart-label">{{ chart.first_label }}</text>
+      <text x="{{ chart.right }}" y="278" text-anchor="end" class="chart-label">{{ chart.last_label }}</text>
+      <text x="350" y="298" text-anchor="middle" class="chart-axis-title">Czas pomiaru (UTC)</text>
+      <text
+        x="18"
+        y="150"
+        text-anchor="middle"
+        transform="rotate(-90 18 150)"
+        class="chart-axis-title"
+      >Wartość ({{ chart.unit }})</text>
+      {% if chart.points|length > 1 %}
+        <polyline
+          class="chart-line"
+          points="{% for point in chart.points %}{{ point.x }},{{ point.y }}{% if not loop.last %} {% endif %}{% endfor %}"
+          fill="none"
+        />
+      {% endif %}
+      {% for point in chart.points %}
+        <circle class="chart-point" cx="{{ point.x }}" cy="{{ point.y }}" r="4">
+          <title>{{ point.label }}: {{ point.value }} {{ point.unit }}</title>
+        </circle>
+      {% endfor %}
+    </svg>
+  </figure>
+  <div class="table-scroll">
+    <table class="trend-data-table">
+      <caption>Dokładne wartości przedstawione na wykresie</caption>
+      <thead>
+        <tr>
+          <th scope="col">Data i godzina (UTC)</th>
+          <th scope="col">Wartość ({{ chart.unit }})</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for point in chart.points %}
+          <tr>
+            <td>{{ point.label }}</td>
+            <td>{{ point.value }} {{ point.unit }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>Brak wpisów dla wybranej nazwy, jednostki i zakresu.</p>
+{% endif %}

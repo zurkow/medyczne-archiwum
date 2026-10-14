@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="panel" aria-labelledby="measurements-heading">
+    <h1 id="measurements-heading">Pomiary</h1>
+    <p>Historia zawiera wyłącznie Twoje wpisy oraz wpisy jawnie Ci udostępnione.</p>
+
+    <form action="/measurements/ui" method="get" class="filter-form">
+      <label for="history-days">Zakres historii</label>
+      <select id="history-days" name="days">
+        {% for range in allowed_days %}
+          <option value="{{ range }}"{% if days == range %} selected{% endif %}>Ostatnie {{ range }} dni</option>
+        {% endfor %}
+      </select>
+      {% if series_options %}
+        <label for="history-series">Seria trendu (nazwa i jednostka)</label>
+        <select id="history-series" name="series">
+          {% for option in series_options %}
+            <option value="{{ option.index }}"{% if selected_series_index == option.index %} selected{% endif %}>
+              {{ option.name }} — {{ option.unit }}
+            </option>
+          {% endfor %}
+        </select>
+      {% endif %}
+      <button type="submit">Pokaż historię</button>
+    </form>
+
+    <section aria-labelledby="trend-heading">
+      <h2 id="trend-heading">Trend wybranej serii</h2>
+      {% if selected_series %}
+        {% set chart_id = "measurements-trend" %}
+        {% include "trend_chart.html" %}
+        <p class="visually-hidden" id="trend-data-note">
+          Tabela poniżej zawiera dane wykresu i jest dostępna bez JavaScript.
+        </p>
+      {% else %}
+        <p>Dodaj pomiar, aby zobaczyć trend.</p>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="add-measurement-heading">
+      <h2 id="add-measurement-heading">Dodaj pomiar</h2>
+      <form action="/measurements/ui" method="post" class="measurement-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="new-name">Nazwa</label>
+        <input id="new-name" name="name" maxlength="100" required>
+        <label for="new-value">Wartość</label>
+        <input id="new-value" name="value" inputmode="decimal" required>
+        <label for="new-unit">Jednostka</label>
+        <input id="new-unit" name="unit" maxlength="32" required>
+        <label for="new-measured-at">Data i godzina (UTC)</label>
+        <input id="new-measured-at" name="measured_at" type="datetime-local" step="60" required>
+        <label for="new-note">Notatka (opcjonalnie)</label>
+        <textarea id="new-note" name="note" rows="2" maxlength="1000"></textarea>
+        <button type="submit">Dodaj pomiar</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="history-heading">
+      <h2 id="history-heading">Historia wpisów</h2>
+      {% if records %}
+        <div class="table-scroll">
+          <table>
+            <caption>Do 100 najnowszych widocznych pomiarów w wybranym zakresie</caption>
+            <thead>
+              <tr>
+                <th scope="col">Data i godzina (UTC)</th>
+                <th scope="col">Pomiar</th>
+                <th scope="col">Notatka</th>
+                <th scope="col">Zarządzanie</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in records %}
+                <tr>
+                  <td>{{ record.measured_at.strftime("%Y-%m-%d %H:%M UTC") }}</td>
+                  <td>{{ record.name }}: {{ record.value }} {{ record.unit }}</td>
+                  <td>{{ record.note or "—" }}</td>
+                  <td>
+                    {% if record.id in owner_measurement_ids %}
+                      <details>
+                        <summary>Edytuj</summary>
+                        <form action="/measurements/{{ record.id }}/edit" method="post" class="measurement-form">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          <label for="edit-name-{{ record.id }}">Nazwa</label>
+                          <input id="edit-name-{{ record.id }}" name="name" value="{{ record.name }}" maxlength="100" required>
+                          <label for="edit-value-{{ record.id }}">Wartość</label>
+                          <input id="edit-value-{{ record.id }}" name="value" value="{{ record.value }}" inputmode="decimal" required>
+                          <label for="edit-unit-{{ record.id }}">Jednostka</label>
+                          <input id="edit-unit-{{ record.id }}" name="unit" value="{{ record.unit }}" maxlength="32" required>
+                          <label for="edit-date-{{ record.id }}">Data i godzina (UTC)</label>
+                          <input
+                            id="edit-date-{{ record.id }}"
+                            name="measured_at"
+                            type="datetime-local"
+                            step="1"
+                            value="{{ datetime_value(record.measured_at) }}"
+                            required
+                          >
+                          <label for="edit-note-{{ record.id }}">Notatka (opcjonalnie)</label>
+                          <textarea id="edit-note-{{ record.id }}" name="note" rows="2" maxlength="1000">{{ record.note or "" }}</textarea>
+                          <button type="submit">Zapisz zmiany</button>
+                        </form>
+                      </details>
+                      <form action="/measurements/{{ record.id }}/delete" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="button-secondary">Usuń</button>
+                      </form>
+                    {% else %}
+                      <span>Tylko do odczytu — udostępniony wpis</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>Brak pomiarów w wybranym zakresie.</p>
+      {% endif %}
+    </section>
+    <p class="medical-limitation">Wykres pokazuje zapisane wartości i nie stanowi interpretacji medycznej.</p>
+  </section>
+{% endblock %}

@@ -11,8 +11,10 @@
       <a class="brand" href="/">Medyczne Archiwum</a>
       {% if user %}
         <nav aria-label="Nawigacja główna">
-          <a aria-current="page" href="/">Strona główna</a>
-          <a href="/documents/ui">Dokumenty</a>
+          <a href="/" {% if request.url.path == "/" %}aria-current="page"{% endif %}>Pulpit</a>
+          <a href="/documents/ui" {% if request.url.path.startswith("/documents") %}aria-current="page"{% endif %}>Dokumenty</a>
+          <a href="/measurements/ui" {% if request.url.path.startswith("/measurements") %}aria-current="page"{% endif %}>Pomiary</a>
+          <a href="/assistant/ui" {% if request.url.path.startswith("/assistant") %}aria-current="page"{% endif %}>Zapytaj asystenta</a>
           {% if user.is_admin %}
             <a href="/auth/invite">Zaproszenia</a>
           {% endif %}

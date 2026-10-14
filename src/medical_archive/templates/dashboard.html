@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="panel dashboard" aria-labelledby="dashboard-heading">
+    <h1 id="dashboard-heading">Pulpit pacjenta</h1>
+    <p class="account-summary">Profil: <strong>{{ user.email }}</strong></p>
+    <div class="dashboard-grid">
+      <section class="dashboard-card" aria-labelledby="recent-documents-heading">
+        <h2 id="recent-documents-heading">Ostatnie dokumenty</h2>
+        {% if documents %}
+          <ul>
+            {% for document in documents %}
+              <li>
+                <a href="{{ document.url }}">{{ document.filename }}</a>
+                {% if document.document_date %} — {{ document.document_date }}{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>Brak dostępnych dokumentów.</p>
+        {% endif %}
+        <a class="action-link" href="/documents/ui">Otwórz dokumenty</a>
+      </section>
+
+      <section class="dashboard-card" aria-labelledby="recent-measurements-heading">
+        <h2 id="recent-measurements-heading">Pomiary</h2>
+        {% if recent_measurements %}
+          <ul>
+            {% for measurement in recent_measurements %}
+              <li>
+                {{ measurement.name }}: {{ measurement.value }} {{ measurement.unit }}
+                — {{ measurement.measured_at.strftime("%Y-%m-%d %H:%M UTC") }}
+              </li>
+            {% endfor %}
+          </ul>
+          {% if recent_chart %}
+            {% set chart = recent_chart %}
+            {% set chart_id = "dashboard-trend" %}
+            {% include "trend_chart.html" %}
+          {% endif %}
+        {% else %}
+          <p>Brak dostępnych pomiarów.</p>
+        {% endif %}
+        <a class="action-link" href="/measurements/ui">Otwórz historię pomiarów</a>
+      </section>
+
+      <section class="dashboard-card" aria-labelledby="quick-question-heading">
+        <h2 id="quick-question-heading">Zapytaj o swoje dokumenty</h2>
+        <form action="/assistant/ask" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="quick-question">Pytanie</label>
+          <textarea
+            id="quick-question"
+            name="question"
+            rows="3"
+            maxlength="2000"
+            placeholder="Np. kiedy wykonano ostatnie badanie?"
+            required
+          ></textarea>
+          <button type="submit">Zapytaj asystenta</button>
+        </form>
+        <p>Asystent odpowiada na podstawie dostępnych danych. Nie diagnozuje ani nie zaleca leczenia.</p>
+      </section>
+    </div>
+  </section>
+{% endblock %}
