@@ -1,3 +1,4 @@
+
 # Medyczne Archiwum
 
 Prywatne archiwum medyczne z kontami domowników i jawnymi uprawnieniami do
@@ -95,9 +96,9 @@ opcjonalne zależności projektu:
 py -3.12 -m pip install -e ".[dev,local-ai]"
 ```
 
-Grupa `local-ai` zawiera PyMuPDF (`pymupdf`) do obsługi PDF-ów oraz
-`sqlite-vec` do wektorowego wyszukiwania w SQLite. Weryfikuj wymagane filtrowanie
-partycji bezpośrednio w zapytaniu KNN poleceniem:
+Grupa `local-ai` zawiera PyMuPDF (`pymupdf`) do obsługi PDF-ów. `sqlite-vec` do
+wektorowego wyszukiwania w SQLite jest częścią podstawowej instalacji.
+Weryfikuj wymagane filtrowanie partycji bezpośrednio w zapytaniu KNN poleceniem:
 
 ```powershell
 py -3.12 -m pytest tests/rag/test_sqlite_vec_compatibility.py -q

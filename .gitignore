@@ -29,3 +29,4 @@ user_files/
 *.pfx
 certs/
 backups/
+*.marchive

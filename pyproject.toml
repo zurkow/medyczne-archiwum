@@ -11,10 +11,12 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic",
     "argon2-cffi",
+    "cryptography",
     "fastapi",
     "jinja2",
     "pydantic-settings",
     "sqlalchemy>=2,<3",
+    "sqlite-vec",
     "uvicorn[standard]",
 ]
 
@@ -26,7 +28,6 @@ dev = [
 ]
 local-ai = [
     "pymupdf",
-    "sqlite-vec",
 ]
 
 [tool.setuptools.packages.find]
@@ -38,3 +39,7 @@ pythonpath = ["src"]
 [tool.ruff]
 exclude = ["docs"]
 line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+# Protected backup contract test: it must stay byte-identical.
+"tests/backup/test_roundtrip.py" = ["F401", "I001"]
