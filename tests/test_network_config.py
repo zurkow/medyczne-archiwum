@@ -7,6 +7,7 @@ from pydantic import ValidationError
 import medical_archive.__main__ as entrypoint
 from medical_archive.config import Settings
 from medical_archive.main import create_app
+from medical_archive.preflight import Preflight, PreflightResult
 
 _SECRET = "s" * 32
 
@@ -167,6 +168,8 @@ def test_serve_runs_uvicorn_with_tls_and_without_proxy_headers(
     monkeypatch.setenv("MEDICAL_ARCHIVE_TLS_KEY", str(key))
     monkeypatch.setenv("MEDICAL_ARCHIVE_SESSION_SECRET", _SECRET)
     monkeypatch.setenv("MEDICAL_ARCHIVE_DATA_DIR", str(tmp_path))
+    passing = PreflightResult(status="ok", checks=(), missing_components=())
+    monkeypatch.setattr(Preflight, "check", lambda self: passing)
     calls = []
     monkeypatch.setattr(
         entrypoint.uvicorn, "run", lambda app, **options: calls.append((app, options))
