@@ -14,6 +14,23 @@ from medical_archive.db import create_database, get_session
 from medical_archive.main import create_app
 from medical_archive.models import User
 
+_ISOLATED_ENVIRONMENT_VARIABLES = (
+    "MEDICAL_ARCHIVE_ENVIRONMENT",
+    "MEDICAL_ARCHIVE_HOST",
+    "MEDICAL_ARCHIVE_PORT",
+    "MEDICAL_ARCHIVE_TLS_CERT",
+    "MEDICAL_ARCHIVE_TLS_KEY",
+    "MEDICAL_ARCHIVE_ALLOWED_HOSTS",
+    "MEDICAL_ARCHIVE_BACKUP_MAX_BYTES",
+    "MEDICAL_ARCHIVE_DATABASE_URL",
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_network_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in _ISOLATED_ENVIRONMENT_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+
 
 class _CsrfTokenParser(HTMLParser):
     def __init__(self) -> None:
