@@ -37,10 +37,19 @@ python -m medical_archive.auth.bootstrap --email admin@example.test
 ```
 
 Polecenie bootstrap pobiera hasło interaktywnie i może utworzyć wyłącznie
-pierwszego administratora. Uruchom serwer:
+pierwszego administratora. Uruchom serwer w trybie deweloperskim (HTTP tylko
+na `127.0.0.1`):
 
 ```powershell
-python -m uvicorn medical_archive.main:app
+python -m medical_archive
+```
+
+W sieci LAN uruchamiaj aplikację wyłącznie przez HTTPS, podając prywatny adres
+IP komputera oraz ścieżki do certyfikatu i klucza TLS (skrypt nie generuje
+certyfikatów, a zmienna `MEDICAL_ARCHIVE_SESSION_SECRET` musi być ustawiona):
+
+```powershell
+.\scripts\run-lan.ps1 -HostAddress 192.168.1.10 -Port 8443 -CertFile C:\certs\archiwum.pem -KeyFile C:\certs\archiwum-key.pem
 ```
 
 Strona logowania jest dostępna pod adresem `http://127.0.0.1:8000/auth/login`;

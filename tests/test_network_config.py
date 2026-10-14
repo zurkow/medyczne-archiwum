@@ -1,9 +1,12 @@
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+import medical_archive.__main__ as entrypoint
 from medical_archive.config import Settings
+from medical_archive.main import create_app
 
 _SECRET = "s" * 32
 
@@ -116,3 +119,68 @@ def test_allowed_hosts_rejects_wildcards(tmp_path: Path, wildcard: str):
 
     settings = Settings(testing=True, data_dir=tmp_path, allowed_hosts=["Archiwum.LAN"])
     assert settings.allowed_hosts == ["archiwum.lan"]
+
+
+def test_production_app_rejects_foreign_host_header_and_sends_no_cors_headers(
+    tmp_path: Path, tls_files: tuple[Path, Path]
+):
+    cert, key = tls_files
+    settings = Settings(
+        environment="production",
+        host="192.168.1.10",
+        allowed_hosts=["archiwum.lan"],
+        tls_cert=cert,
+        tls_key=key,
+        session_secret=_SECRET,
+        data_dir=tmp_path,
+    )
+    client = TestClient(create_app(settings=settings), base_url="https://archiwum.lan")
+
+    foreign = client.get("/health", headers={"host": "evil.example"})
+    trusted = client.get("/health", headers={"origin": "https://evil.example"})
+
+    assert foreign.status_code == 400
+    assert trusted.status_code == 200
+    assert "access-control-allow-origin" not in trusted.headers
+    assert client.get("/docs").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
+def test_create_app_outside_testing_refuses_to_start_without_session_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.delenv("MEDICAL_ARCHIVE_SESSION_SECRET", raising=False)
+    monkeypatch.setenv("MEDICAL_ARCHIVE_DATA_DIR", str(tmp_path))
+
+    with pytest.raises(ValueError, match="session_secret is required"):
+        create_app()
+
+
+def test_serve_runs_uvicorn_with_tls_and_without_proxy_headers(
+    tmp_path: Path, tls_files: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+):
+    cert, key = tls_files
+    monkeypatch.setenv("MEDICAL_ARCHIVE_ENVIRONMENT", "production")
+    monkeypatch.setenv("MEDICAL_ARCHIVE_HOST", "192.168.1.10")
+    monkeypatch.setenv("MEDICAL_ARCHIVE_PORT", "8443")
+    monkeypatch.setenv("MEDICAL_ARCHIVE_TLS_CERT", str(cert))
+    monkeypatch.setenv("MEDICAL_ARCHIVE_TLS_KEY", str(key))
+    monkeypatch.setenv("MEDICAL_ARCHIVE_SESSION_SECRET", _SECRET)
+    monkeypatch.setenv("MEDICAL_ARCHIVE_DATA_DIR", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(
+        entrypoint.uvicorn, "run", lambda app, **options: calls.append((app, options))
+    )
+
+    entrypoint.serve()
+
+    assert len(calls) == 1
+    _app, options = calls[0]
+    assert options == {
+        "host": "192.168.1.10",
+        "port": 8443,
+        "ssl_certfile": str(cert.resolve()),
+        "ssl_keyfile": str(key.resolve()),
+        "proxy_headers": False,
+        "server_header": False,
+    }

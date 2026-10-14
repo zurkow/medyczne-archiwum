@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from medical_archive.auth.router import router as auth_router
@@ -15,14 +16,15 @@ from medical_archive.web.router import router as web_router
 _STATIC_DIRECTORY = Path(__file__).resolve().parent / "static"
 
 
-def create_app(*, testing: bool = False) -> FastAPI:
+def create_app(*, testing: bool = False, settings: Settings | None = None) -> FastAPI:
+    settings = settings or Settings(testing=testing)
     app = FastAPI(
         title="Medyczne Archiwum",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
     )
-    app.state.data_dir = Settings(testing=True).data_dir
+    app.state.data_dir = settings.data_dir
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIRECTORY)), name="static")
     app.include_router(auth_router)
     app.include_router(documents_router)
@@ -36,7 +38,9 @@ def create_app(*, testing: bool = False) -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    if settings.environment == "production":
+        app.add_middleware(
+            TrustedHostMiddleware,
+            allowed_hosts=[settings.host, *settings.allowed_hosts],
+        )
     return app
-
-
-app = create_app()

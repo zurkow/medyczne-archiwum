@@ -5,6 +5,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect
 
+from medical_archive import db
 from medical_archive.config import Settings
 
 
@@ -31,6 +32,32 @@ def test_settings_default_to_configured_local_model_ids(monkeypatch: pytest.Monk
 
     assert settings.embedding_model == "text-embedding-nomic-embed-text-v1.5"
     assert settings.chat_model == "bielik-1.5b-v3.0-instruct"
+
+
+def test_reset_database_engine_disposes_cached_engine_and_rebuilds_on_next_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    database_url = f"sqlite:///{(tmp_path / 'reset-test.db').as_posix()}"
+    monkeypatch.setenv("MEDICAL_ARCHIVE_DATABASE_URL", database_url)
+    monkeypatch.setenv("MEDICAL_ARCHIVE_SESSION_SECRET", "s" * 32)
+    monkeypatch.setenv("MEDICAL_ARCHIVE_DATA_DIR", str(tmp_path))
+    db.reset_database_engine()
+    try:
+        first_engine = db._database_engine()
+        with first_engine.connect():
+            pass
+        assert first_engine.pool.checkedin() == 1
+
+        db.reset_database_engine()
+
+        assert first_engine.pool.checkedin() == 0
+        second_engine = db._database_engine()
+        assert second_engine is not first_engine
+        sessions = db.get_session()
+        assert next(sessions).get_bind() is second_engine
+        sessions.close()
+    finally:
+        db.reset_database_engine()
 
 
 @pytest.fixture

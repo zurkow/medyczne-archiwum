@@ -31,15 +31,27 @@ def create_database(url: str) -> Engine:
 
 
 @lru_cache(maxsize=1)
-def _session_factory() -> sessionmaker[Session]:
+def _database_engine() -> Engine:
     settings = Settings()
     if settings.database_url is None:
         raise ValueError("database_url must be configured.")
+    return create_database(settings.database_url)
+
+
+@lru_cache(maxsize=1)
+def _session_factory() -> sessionmaker[Session]:
     return sessionmaker(
-        bind=create_database(settings.database_url),
+        bind=_database_engine(),
         autoflush=False,
         expire_on_commit=False,
     )
+
+
+def reset_database_engine() -> None:
+    if _database_engine.cache_info().currsize:
+        _database_engine().dispose()
+    _session_factory.cache_clear()
+    _database_engine.cache_clear()
 
 
 def get_session() -> Iterator[Session]:
