@@ -18,12 +18,15 @@ target_metadata = Base.metadata
 
 
 def get_database_url() -> str:
-    environment_url = os.environ.get("MEDICAL_ARCHIVE_DATABASE_URL")
+    # A URL set in code wins over the environment, so an environment variable can never
+    # redirect an upgrade of a staged restore copy to the live database. alembic.ini keeps
+    # sqlalchemy.url empty, so the CLI still uses MEDICAL_ARCHIVE_DATABASE_URL.
     configured_url = config.get_main_option("sqlalchemy.url")
-    if environment_url:
-        return environment_url
     if configured_url:
         return configured_url
+    environment_url = os.environ.get("MEDICAL_ARCHIVE_DATABASE_URL")
+    if environment_url:
+        return environment_url
     settings = Settings(testing=True)
     if settings.database_url is None:
         raise ValueError("database_url must be configured.")
