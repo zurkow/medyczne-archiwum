@@ -4,10 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/app.css">
   </head>
   <body>
     <main>
       <h1>{{ title }}</h1>
+      {% if notice == "restored" %}
+        <p role="status" class="notice-success">Kopia została odtworzona. Zaloguj się ponownie. Użyj hasła, które obowiązywało w chwili tworzenia kopii.</p>
+      {% endif %}
       {% if error %}<p role="alert">{{ error }}</p>{% endif %}
       <form action="/auth/login" method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

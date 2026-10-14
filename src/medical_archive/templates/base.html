@@ -17,6 +17,7 @@
           <a href="/assistant/ui" {% if request.url.path.startswith("/assistant") %}aria-current="page"{% endif %}>Zapytaj asystenta</a>
           {% if user.is_admin %}
             <a href="/auth/invite">Zaproszenia</a>
+            <a href="/settings/backup" {% if request.url.path.startswith("/settings") %}aria-current="page"{% endif %}>Kopia zapasowa</a>
           {% endif %}
         </nav>
       {% endif %}

@@ -5,6 +5,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from medical_archive.auth.router import router as auth_router
+from medical_archive.backup.router import router as backup_router
 from medical_archive.backup.service import BackupService, recover_backup_state
 from medical_archive.config import Settings
 from medical_archive.db import reset_database_engine
@@ -42,6 +43,7 @@ def create_app(*, testing: bool = False, settings: Settings | None = None) -> Fa
     app.include_router(measurements_router)
     app.include_router(measurement_grant_router, prefix="/measurements")
     app.include_router(assistant_router)
+    app.include_router(backup_router)
     app.include_router(web_router)
 
     @app.get("/health", include_in_schema=False)

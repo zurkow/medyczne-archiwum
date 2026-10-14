@@ -82,6 +82,7 @@ def _issue_preauth_form(
 def login_page(
     request: Request,
     database: Annotated[Session, Depends(get_session)],
+    restored: str | None = None,
 ):
     existing = find_valid_session(
         database,
@@ -101,6 +102,7 @@ def login_page(
         title="Zaloguj się",
         csrf_token=csrf_token,
         error=None,
+        notice="restored" if restored == "1" else None,
     )
     if new_session:
         _set_session_cookie(response, session_token, max_age=_PREAUTH_MAX_AGE)

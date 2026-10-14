@@ -314,6 +314,97 @@ summary {
   border: 0;
 }
 
+.warning-box {
+  padding: 0.75rem;
+  border-left: 0.25rem solid #8a5a00;
+  color: #4d3300;
+  background: #fff6e0;
+}
+
+.warning-box-danger {
+  border-left-color: #a12622;
+  color: #7a1b18;
+  background: #fff1f0;
+}
+
+.warning-box p,
+.info-box p {
+  margin: 0;
+}
+
+.warning-box ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.info-box {
+  padding: 0.75rem;
+  border: 1px solid #c6d0dc;
+  border-radius: 0.4rem;
+  color: #1f2937;
+  background: #eaf0f6;
+}
+
+.checkbox-field {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.checkbox-field input[type="checkbox"] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: auto;
+  margin-top: 0.2rem;
+  padding: 0;
+  accent-color: #174ea6;
+}
+
+input[type="file"] {
+  max-width: 100%;
+  padding: 0.4rem;
+}
+
+.field-hint {
+  margin: -0.4rem 0 0;
+  font-size: 0.95rem;
+  color: #4b5563;
+}
+
+.field-error {
+  margin: -0.4rem 0 0;
+  color: #7a1b18;
+  font-weight: 600;
+}
+
+input[aria-invalid="true"] {
+  border-color: #a12622;
+  border-width: 2px;
+}
+
+button.button-danger {
+  background: #a12622;
+  color: #fff;
+}
+
+button.button-danger:hover {
+  background: #7a1b18;
+}
+
+.danger-zone {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #c6d0dc;
+}
+
+[role="status"].notice-success {
+  padding: 0.75rem;
+  border-left: 0.25rem solid #1e6b35;
+  color: #14532d;
+  background: #ecf7ef;
+}
+
 @media (min-width: 42rem) {
   .site-header {
     flex-direction: row;

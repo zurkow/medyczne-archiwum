@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from medical_archive.backup import crypto
 from medical_archive.backup import format as archive_format
@@ -16,6 +17,7 @@ from medical_archive.backup.service import BackupService
 from medical_archive.models import Document, LoginSession, User
 
 _SMALL_MAX_BYTES = 8 * 1024 * 1024
+_ACCOUNT_PASSWORD = "correct horse battery"
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,40 @@ def backup_service(backup_data_dir: Path, auth_engine, backup_max_bytes: int) ->
         database_url=auth_engine.url.render_as_string(hide_password=False),
         max_bytes=backup_max_bytes,
         dispose_engine=auth_engine.dispose,
+    )
+
+
+@pytest.fixture
+def backup_app(app, backup_data_dir: Path, backup_service: BackupService):
+    app.state.data_dir = backup_data_dir
+    app.state.backup_service = backup_service
+    return app
+
+
+@pytest.fixture
+def admin_client(backup_app, admin_user, extract_csrf_token):
+    with TestClient(backup_app, base_url="https://testserver") as test_client:
+        assert _login(test_client, admin_user.email, extract_csrf_token).status_code == 303
+        yield test_client
+
+
+@pytest.fixture
+def member_client(backup_app, member_user, extract_csrf_token):
+    with TestClient(backup_app, base_url="https://testserver") as test_client:
+        assert _login(test_client, member_user.email, extract_csrf_token).status_code == 303
+        yield test_client
+
+
+def _login(client: TestClient, email: str, extract_csrf_token, password: str = _ACCOUNT_PASSWORD):
+    login_page = client.get("/auth/login")
+    return client.post(
+        "/auth/login",
+        data={
+            "email": email,
+            "password": password,
+            "csrf_token": extract_csrf_token(login_page.text),
+        },
+        follow_redirects=False,
     )
 
 

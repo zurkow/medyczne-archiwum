@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% macro invalid_attributes(errors, field_id, hint_id=None) -%}
+  {%- if field_id in errors -%}
+    aria-invalid="true" aria-describedby="{% if hint_id %}{{ hint_id }} {% endif %}{{ field_id }}-error"
+  {%- elif hint_id -%}
+    aria-describedby="{{ hint_id }}"
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro field_error(errors, field_id) -%}
+  {%- if field_id in errors -%}
+    <p class="field-error" id="{{ field_id }}-error">✖ {{ errors[field_id] }}</p>
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+  <section class="panel" aria-labelledby="backup-heading">
+    <h1 id="backup-heading">Kopia zapasowa</h1>
+    <p>Kopia obejmuje bazę danych i pliki wszystkich kont oraz profili. Plik jest zaszyfrowany hasłem kopii; pobierasz go na swoje urządzenie.</p>
+    <div class="info-box">
+      <p>Utwórz kopię przed każdą aktualizacją aplikacji. Przechowuj plik i hasło kopii oddzielnie. Zgubionego hasła kopii nie da się odzyskać.</p>
+    </div>
+
+    <section aria-labelledby="export-heading">
+      <h2 id="export-heading">Utwórz kopię zapasową</h2>
+      <div class="warning-box" id="export-warning">
+        <p>Uwaga: kopia zawiera dane wszystkich profili. Każdy, kto ma plik kopii i zna hasło kopii, może odczytać wszystkie dane. Przechowuj ją w bezpiecznym miejscu.</p>
+      </div>
+      <form action="/settings/backup/export#export-error" method="post" aria-describedby="export-warning">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if export_alert %}<p role="alert" id="export-error">{{ export_alert }}</p>{% endif %}
+        <label for="export-admin-password">Twoje hasło administratora</label>
+        <input id="export-admin-password" name="admin_password" type="password" required autocomplete="current-password" {{ invalid_attributes(export_errors, "export-admin-password") }}>
+        {{ field_error(export_errors, "export-admin-password") }}
+        <label for="export-backup-password">Hasło kopii</label>
+        <input id="export-backup-password" name="backup_password" type="password" required minlength="12" maxlength="1024" autocomplete="new-password" {{ invalid_attributes(export_errors, "export-backup-password", "export-password-hint") }}>
+        <p class="field-hint" id="export-password-hint">Od 12 do 1024 znaków. Bez tego hasła kopii nie da się odtworzyć.</p>
+        {{ field_error(export_errors, "export-backup-password") }}
+        <label for="export-backup-password-repeat">Powtórz hasło kopii</label>
+        <input id="export-backup-password-repeat" name="backup_password_repeat" type="password" required minlength="12" maxlength="1024" autocomplete="new-password" {{ invalid_attributes(export_errors, "export-backup-password-repeat", "export-password-hint") }}>
+        {{ field_error(export_errors, "export-backup-password-repeat") }}
+        <div class="checkbox-field">
+          <input id="export-confirm" name="confirm" type="checkbox" value="yes" required {{ invalid_attributes(export_errors, "export-confirm") }}>
+          <label for="export-confirm">Rozumiem, że kopia zawiera dane wszystkich profili</label>
+        </div>
+        {{ field_error(export_errors, "export-confirm") }}
+        <button type="submit">Utwórz i pobierz kopię</button>
+      </form>
+    </section>
+
+    <section class="danger-zone" aria-labelledby="restore-heading">
+      <h2 id="restore-heading">Odtwórz z kopii zapasowej</h2>
+      <div class="warning-box warning-box-danger" id="restore-warning">
+        <p>Odtworzenie zastąpi obecne dane wszystkich kont i profili danymi z kopii. Tej operacji nie można cofnąć.</p>
+        <ul>
+          <li>Wszyscy użytkownicy, także Ty, zostaną wylogowani.</li>
+          <li>Konta i hasła logowania będą takie, jak w kopii — zaloguj się hasłem, które obowiązywało w chwili tworzenia kopii.</li>
+          <li>W czasie odtwarzania aplikacja jest niedostępna dla wszystkich.</li>
+        </ul>
+      </div>
+      <form action="/settings/backup/restore#restore-error" method="post" enctype="multipart/form-data" aria-describedby="restore-warning">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if restore_alert %}<p role="alert" id="restore-error">{{ restore_alert }}</p>{% endif %}
+        <label for="restore-file">Plik kopii (.marchive)</label>
+        <input id="restore-file" name="backup_file" type="file" accept=".marchive" required {{ invalid_attributes(restore_errors, "restore-file", "restore-file-hint") }}>
+        <p class="field-hint" id="restore-file-hint">Maksymalnie {{ max_backup_size_label }}.</p>
+        {{ field_error(restore_errors, "restore-file") }}
+        <label for="restore-backup-password">Hasło kopii</label>
+        <input id="restore-backup-password" name="backup_password" type="password" required maxlength="1024" autocomplete="off">
+        <label for="restore-admin-password">Twoje hasło administratora</label>
+        <input id="restore-admin-password" name="admin_password" type="password" required autocomplete="current-password" {{ invalid_attributes(restore_errors, "restore-admin-password") }}>
+        {{ field_error(restore_errors, "restore-admin-password") }}
+        <div class="checkbox-field">
+          <input id="restore-confirm" name="confirm" type="checkbox" value="yes" required {{ invalid_attributes(restore_errors, "restore-confirm") }}>
+          <label for="restore-confirm">Rozumiem, że obecne dane zostaną zastąpione</label>
+        </div>
+        {{ field_error(restore_errors, "restore-confirm") }}
+        <button type="submit" class="button-danger">Odtwórz z kopii</button>
+        <p class="field-hint">Odtwarzanie może potrwać kilka minut. Nie zamykaj tej karty.</p>
+      </form>
+    </section>
+  </section>
+{% endblock %}
