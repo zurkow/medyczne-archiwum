@@ -7,6 +7,7 @@ from medical_archive.auth.router import router as auth_router
 from medical_archive.config import Settings
 from medical_archive.documents.router import grant_router
 from medical_archive.documents.router import router as documents_router
+from medical_archive.rag.router import router as assistant_router
 from medical_archive.web.router import router as web_router
 
 _STATIC_DIRECTORY = Path(__file__).resolve().parent / "static"
@@ -24,6 +25,7 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(documents_router)
     app.include_router(grant_router, prefix="/documents")
+    app.include_router(assistant_router)
     app.include_router(web_router)
 
     @app.get("/health", include_in_schema=False)

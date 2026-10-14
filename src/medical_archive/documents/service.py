@@ -18,6 +18,8 @@ from medical_archive.documents.storage import (
 from medical_archive.rag.embeddings import EmbeddingClient
 from medical_archive.rag.index import DocumentVectorIndexer
 from medical_archive.rag.models import EMBEDDING_DIMENSIONS
+from medical_archive.rag.retrieval import DocumentRetriever
+from medical_archive.rag.service import AnswerService, LMStudioClient
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +42,31 @@ def create_document_indexer(session: Session) -> DocumentVectorIndexer:
         model=settings.embedding_model,
         dimensions=EMBEDDING_DIMENSIONS,
         base_url=settings.lm_studio_base_url,
+        timeout=settings.embedding_timeout_seconds,
     )
     return DocumentVectorIndexer(session, embedder=embedder)
+
+
+def create_answer_service(session: Session) -> AnswerService:
+    settings = Settings(testing=True)
+    embedder = EmbeddingClient(
+        model=settings.embedding_model,
+        dimensions=EMBEDDING_DIMENSIONS,
+        base_url=settings.lm_studio_base_url,
+        timeout=settings.embedding_timeout_seconds,
+    )
+    retriever = DocumentRetriever(
+        session,
+        embedder=embedder,
+        relevance_threshold=settings.retrieval_relevance_threshold,
+        top_k=settings.retrieval_top_k,
+    )
+    generator = LMStudioClient(
+        base_url=settings.lm_studio_base_url,
+        model=settings.chat_model,
+        timeout=settings.generation_timeout_seconds,
+    )
+    return AnswerService(retriever=retriever, generator=generator)
 
 
 def create_document(

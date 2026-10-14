@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="panel" aria-labelledby="page-title">
+    <h1 id="page-title">Asystent</h1>
+    <p>Odpowiedzi są oparte wyłącznie na dostępnych, zatwierdzonych dokumentach.</p>
+    <form action="/assistant/ask" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="question">Zadaj pytanie</label>
+      <textarea id="question" name="question" rows="5" maxlength="2000" required>{{ question }}</textarea>
+      <button type="submit">Zapytaj o dokumenty</button>
+    </form>
+
+    {% if error %}
+      <p role="alert">{{ error }}</p>
+    {% endif %}
+
+    {% if answer %}
+      <section aria-labelledby="answer-title">
+        <h2 id="answer-title">Odpowiedź</h2>
+        <p>{{ answer }}</p>
+        {% if sources %}
+          <h3>Źródła</h3>
+          <ul>
+            {% for source in sources %}
+              <li>
+                <a href="{{ source.url }}">{{ source.filename }}, strona {{ source.page_number }}</a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </section>
+    {% endif %}
+    <p>Asystent nie diagnozuje i nie zaleca leczenia ani zmian leków.</p>
+  </section>
+{% endblock %}

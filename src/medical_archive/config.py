@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     database_url: str | None = None
     lm_studio_base_url: str = "http://127.0.0.1:1234/v1"
     embedding_model: str = "nomic-embed-text-v1.5"
+    chat_model: str = "Bielik-1.5B-v3.0-Instruct"
+    embedding_timeout_seconds: float = Field(default=15.0, gt=0)
+    generation_timeout_seconds: float = Field(default=90.0, gt=0)
+    retrieval_relevance_threshold: float = Field(default=0.2, ge=0, le=1)
+    retrieval_top_k: int = Field(default=8, gt=0, le=100)
 
     def __init__(self, *, testing: bool = False, **values: object) -> None:
         super().__init__(**values)
@@ -35,6 +40,13 @@ class Settings(BaseSettings):
     def validate_embedding_model(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("embedding_model must name a local embedding model.")
+        return value
+
+    @field_validator("chat_model")
+    @classmethod
+    def validate_chat_model(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("chat_model must name a local chat model.")
         return value
 
     @field_validator("data_dir")
