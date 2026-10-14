@@ -101,11 +101,13 @@ kodem 1; nie jest przedstawiany jako udana konfiguracja.
 
 Indeksowanie wysyła tekst wyłącznie do lokalnego endpointu embeddingów LM Studio
 (`MEDICAL_ARCHIVE_LM_STUDIO_BASE_URL`, domyślnie
-`http://127.0.0.1:1234/v1`). Wybierz model zgodny z wymiarem 768 i ustaw jego
-identyfikator dokładnie tak, jak pokazuje LM Studio, przez
-`MEDICAL_ARCHIVE_EMBEDDING_MODEL` (domyślnie `nomic-embed-text-v1.5`). Aplikacja
-odrzuca endpoint spoza loopback oraz nie zapisuje treści dokumentu ani wektorów
-w logach.
+`http://127.0.0.1:1234/v1`). Użyj modelu embeddingów zgodnego z wymiarem 768;
+domyślny identyfikator `text-embedding-nomic-embed-text-v1.5` odpowiada modelowi
+Nomic załadowanemu w LM Studio. Identyfikator chatu Bielik to
+`bielik-1.5b-v3.0-instruct`; można go zmienić przez `MEDICAL_ARCHIVE_CHAT_MODEL`.
+Obie nazwy można nadpisać zmiennymi `MEDICAL_ARCHIVE_EMBEDDING_MODEL` i
+`MEDICAL_ARCHIVE_CHAT_MODEL`. Aplikacja odrzuca endpoint spoza loopback oraz nie
+zapisuje treści dokumentu ani wektorów w logach.
 
 Fragmentowanie nie pobiera ani nie wysyła tekstu do zewnętrznego tokenizera.
 Ponieważ tokenizer modelu nie jest częścią lokalnych zależności, używa

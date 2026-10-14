@@ -23,6 +23,16 @@ def test_settings_rejects_empty_session_secret():
         raise AssertionError("Empty session secret must be rejected")
 
 
+def test_settings_default_to_configured_local_model_ids(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("MEDICAL_ARCHIVE_EMBEDDING_MODEL", raising=False)
+    monkeypatch.delenv("MEDICAL_ARCHIVE_CHAT_MODEL", raising=False)
+
+    settings = Settings(testing=True)
+
+    assert settings.embedding_model == "text-embedding-nomic-embed-text-v1.5"
+    assert settings.chat_model == "bielik-1.5b-v3.0-instruct"
+
+
 @pytest.fixture
 def migrated_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     database_path = tmp_path / "identity-test.db"

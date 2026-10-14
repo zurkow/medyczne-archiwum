@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path.home() / ".medical-archive"
     database_url: str | None = None
     lm_studio_base_url: str = "http://127.0.0.1:1234/v1"
-    embedding_model: str = "nomic-embed-text-v1.5"
-    chat_model: str = "Bielik-1.5B-v3.0-Instruct"
+    embedding_model: str = "text-embedding-nomic-embed-text-v1.5"
+    chat_model: str = "bielik-1.5b-v3.0-instruct"
     embedding_timeout_seconds: float = Field(default=15.0, gt=0)
     generation_timeout_seconds: float = Field(default=90.0, gt=0)
     retrieval_relevance_threshold: float = Field(default=0.2, ge=0, le=1)

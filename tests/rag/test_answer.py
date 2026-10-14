@@ -117,3 +117,30 @@ def test_generation_failure_is_reported_without_a_fallback_answer():
             user_id=7,
             question="Co mówi dokument?",
         )
+
+
+def test_lm_studio_uses_json_schema_response_mode():
+    from medical_archive.rag.service import LMStudioClient
+
+    captured = {}
+
+    def request(endpoint, payload, timeout):
+        captured.update(payload)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"answer":"ok","citations":["source-1"]}',
+                    }
+                }
+            ]
+        }
+
+    client = LMStudioClient(
+        base_url="http://127.0.0.1:1234/v1",
+        model="bielik-1.5b-v3.0-instruct",
+        request=request,
+    )
+    client.generate("test prompt")
+
+    assert captured["response_format"]["type"] == "json_schema"

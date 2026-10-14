@@ -86,7 +86,25 @@ class LMStudioClient:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0,
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "grounded_answer",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "answer": {"type": "string"},
+                            "citations": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                        },
+                        "required": ["answer", "citations"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
         }
         try:
             result = self._request(self.endpoint, payload, self.timeout)
