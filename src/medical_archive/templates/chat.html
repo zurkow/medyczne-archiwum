@@ -3,12 +3,12 @@
 {% block content %}
   <section class="panel" aria-labelledby="page-title">
     <h1 id="page-title">Asystent</h1>
-    <p>Odpowiedzi są oparte wyłącznie na dostępnych, zatwierdzonych dokumentach.</p>
+    <p>Odpowiedzi są oparte wyłącznie na dostępnych, zatwierdzonych dokumentach i pomiarach.</p>
     <form action="/assistant/ask" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label for="question">Zadaj pytanie</label>
       <textarea id="question" name="question" rows="5" maxlength="2000" required>{{ question }}</textarea>
-      <button type="submit">Zapytaj o dokumenty</button>
+      <button type="submit">Zapytaj o dostępne źródła</button>
     </form>
 
     {% if error %}
@@ -24,7 +24,14 @@
           <ul>
             {% for source in sources %}
               <li>
-                <a href="{{ source.url }}">{{ source.filename }}, strona {{ source.page_number }}</a>
+                {% if source.kind == "measurement" %}
+                  <a href="{{ source.url }}">
+                    Pomiar: {{ source.name }}, {{ source.value }} {{ source.unit }},
+                    {{ source.measured_at }}
+                  </a>
+                {% else %}
+                  <a href="{{ source.url }}">{{ source.filename }}, strona {{ source.page_number }}</a>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>

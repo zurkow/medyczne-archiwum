@@ -12,7 +12,11 @@ from medical_archive.db import get_session
 from medical_archive.documents.service import create_answer_service
 from medical_archive.models import LoginSession, User
 from medical_archive.rag.retrieval import RetrievalError
-from medical_archive.rag.service import AnswerResult, AnswerServiceError
+from medical_archive.rag.service import (
+    AnswerMeasurementSource,
+    AnswerResult,
+    AnswerServiceError,
+)
 from medical_archive.web.templates import render_template
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
@@ -51,18 +55,35 @@ def _verify_request_csrf(
 
 
 def _answer_payload(result: AnswerResult) -> dict[str, object]:
+    sources = []
+    for source in result.sources:
+        if isinstance(source, AnswerMeasurementSource):
+            sources.append(
+                {
+                    "kind": "measurement",
+                    "citation_id": source.citation_id,
+                    "measurement_id": source.measurement_id,
+                    "name": source.name,
+                    "value": source.value,
+                    "unit": source.unit,
+                    "measured_at": source.measured_at.isoformat().replace("+00:00", "Z"),
+                    "url": source.url,
+                }
+            )
+        else:
+            sources.append(
+                {
+                    "kind": "document",
+                    "citation_id": source.citation_id,
+                    "document_id": source.document_id,
+                    "filename": source.filename,
+                    "page_number": source.page_number,
+                    "url": source.url,
+                }
+            )
     return {
         "answer": result.answer,
-        "sources": [
-            {
-                "citation_id": source.citation_id,
-                "document_id": source.document_id,
-                "filename": source.filename,
-                "page_number": source.page_number,
-                "url": source.url,
-            }
-            for source in result.sources
-        ],
+        "sources": sources,
     }
 
 

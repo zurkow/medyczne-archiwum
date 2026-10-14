@@ -2,8 +2,8 @@
 
 Prywatne archiwum medyczne z kontami domowników i jawnymi uprawnieniami do
 rekordów. Administrator może zarządzać zaproszeniami, ale nie otrzymuje dostępu
-do prywatnych zasobów użytkowników. Moduły dokumentów i pomiarów nie są jeszcze
-dostępne.
+do prywatnych zasobów użytkowników. Aplikacja obsługuje zatwierdzone dokumenty,
+ręczne pomiary oraz odpowiedzi asystenta oparte na dostępnych źródłach.
 
 ## Wymagania
 
@@ -59,6 +59,32 @@ użytkowników.** Aplikacja nie jest gotowa do przechowywania prawdziwych danych
 medycznych, dopóki nie zostanie skonfigurowane HTTPS/TLS i sprawdzony proces
 tworzenia oraz odtwarzania kopii zapasowych. Lokalny serwer deweloperski nie
 zapewnia tych zabezpieczeń.
+
+## Pomiary i asystent
+
+Po zalogowaniu otwórz `/measurements/ui`, aby ręcznie dodać pomiar oraz
+przeglądać historię. Wpis zawiera nazwę, wartość, jednostkę, datę i opcjonalną
+notatkę. Filtr historii udostępnia zakresy 7, 30, 90 lub 365 dni. Wartości i
+jednostki są przechowywane tak, jak zostały podane; aplikacja nie przypisuje
+znaczenia medycznego ani nie konwertuje jednostek.
+
+Wpisy pozostają prywatne, dopóki ich właściciel jawnie nie udzieli dostępu
+konkretnemu kontu. Uprawnienie można nadać przez `POST
+/measurements/{id}/grants` z `grantee_user_id`, a odwołać przez
+`DELETE /measurements/{id}/grants/{grantee_user_id}`; żądania wymagają
+zalogowanej sesji i tokenu CSRF. Dostęp grantee jest tylko do odczytu.
+Administrator nie uzyskuje automatycznie dostępu do pomiarów, a odwołane
+uprawnienie przestaje być uwzględniane przez asystenta.
+
+Na stronie `/assistant/ui` można pytać o zatwierdzone dokumenty i pomiary
+dostępne zalogowanemu użytkownikowi. Pomiary są pobierane osobnym zapytaniem
+strukturalnym dla ostatnich 365 dni, wyłącznie w granicach aktualnych uprawnień;
+ich wartości i notatki nie trafiają do indeksu wektorowego. Asystent może
+przytoczyć zapisane nazwy, wartości, jednostki i daty, ale nie diagnozuje,
+nie zaleca postępowania, nie przelicza jednostek i nie interpretuje trendów.
+Notatki i tekst dokumentów są traktowane jako niezaufane dane, nie instrukcje.
+Gdy nie ma pasującego, dostępnego źródła, asystent zwraca komunikat o braku
+danych zamiast generować odpowiedź.
 
 ## Opcjonalne lokalne OCR i wyszukiwanie wektorowe
 

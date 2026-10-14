@@ -1,14 +1,16 @@
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from time import perf_counter
+from typing import Literal
 from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from medical_archive.rag.prompt import build_prompt
-from medical_archive.rag.retrieval import RetrievedSource
+from medical_archive.rag.prompt import SYSTEM_INSTRUCTIONS, build_prompt
+from medical_archive.rag.retrieval import RetrievedMeasurementSource, RetrievedSource
 
 logger = logging.getLogger(__name__)
 NO_DATA_ANSWER = "Nie znalazłem w dostępnych źródłach informacji, która odpowiada na to pytanie."
@@ -39,12 +41,25 @@ class AnswerSource:
     filename: str
     page_number: int
     url: str
+    kind: Literal["document"] = "document"
+
+
+@dataclass(frozen=True)
+class AnswerMeasurementSource:
+    citation_id: str
+    measurement_id: str
+    name: str
+    value: str
+    unit: str
+    measured_at: datetime
+    url: str
+    kind: Literal["measurement"] = "measurement"
 
 
 @dataclass(frozen=True)
 class AnswerResult:
     answer: str
-    sources: list[AnswerSource]
+    sources: list[AnswerSource | AnswerMeasurementSource]
 
 
 class LMStudioClient:
@@ -81,7 +96,7 @@ class LMStudioClient:
             "messages": [
                 {
                     "role": "system",
-                    "content": "Odpowiadaj wyłącznie w formacie wymaganym przez instrukcję.",
+                    "content": SYSTEM_INSTRUCTIONS,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -172,7 +187,10 @@ class AnswerService:
         return result
 
 
-def _parse_model_response(response: str, sources: list[RetrievedSource]) -> AnswerResult:
+def _parse_model_response(
+    response: str,
+    sources: list[RetrievedSource | RetrievedMeasurementSource],
+) -> AnswerResult:
     try:
         payload = json.loads(response)
     except (TypeError, json.JSONDecodeError) as error:
@@ -190,18 +208,34 @@ def _parse_model_response(response: str, sources: list[RetrievedSource]) -> Answ
     ):
         raise InvalidModelResponseError("The local model returned an incomplete response.")
     source_by_id = {source.citation_id: source for source in sources}
-    if len(set(citations)) != len(citations) or any(
-        citation not in source_by_id for citation in citations
+    if (
+        len(source_by_id) != len(sources)
+        or len(set(citations)) != len(citations)
+        or any(citation not in source_by_id for citation in citations)
     ):
         raise InvalidCitationError("The local model returned an unknown citation.")
-    answer_sources = [
-        AnswerSource(
-            citation_id=source.citation_id,
-            document_id=source.document_id,
-            filename=source.filename,
-            page_number=source.page_number,
-            url=source.url,
-        )
-        for source in (source_by_id[citation] for citation in citations)
-    ]
+    answer_sources: list[AnswerSource | AnswerMeasurementSource] = []
+    for source in (source_by_id[citation] for citation in citations):
+        if getattr(source, "kind", "document") == "measurement":
+            answer_sources.append(
+                AnswerMeasurementSource(
+                    citation_id=source.citation_id,
+                    measurement_id=source.measurement_id,
+                    name=source.name,
+                    value=source.value,
+                    unit=source.unit,
+                    measured_at=source.measured_at,
+                    url=source.url,
+                )
+            )
+        else:
+            answer_sources.append(
+                AnswerSource(
+                    citation_id=source.citation_id,
+                    document_id=source.document_id,
+                    filename=source.filename,
+                    page_number=source.page_number,
+                    url=source.url,
+                )
+            )
     return AnswerResult(answer=answer.strip(), sources=answer_sources)
