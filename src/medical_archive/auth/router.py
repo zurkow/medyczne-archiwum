@@ -1,6 +1,5 @@
 from datetime import UTC, datetime
 from typing import Annotated
-from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -29,12 +28,12 @@ from medical_archive.auth.service import (
 )
 from medical_archive.db import get_session
 from medical_archive.models import LoginSession, User
+from medical_archive.web.forms import read_form_fields
 from medical_archive.web.templates import render_template
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _PREAUTH_MAX_AGE = int(PREAUTH_LIFETIME.total_seconds())
 _SESSION_MAX_AGE = int(SESSION_LIFETIME.total_seconds())
-_MAX_FORM_BYTES = 16_384
 
 
 def _set_session_cookie(response, token: str, *, max_age: int) -> None:
@@ -47,27 +46,6 @@ def _set_session_cookie(response, token: str, *, max_age: int) -> None:
         samesite="strict",
         path="/",
     )
-
-
-async def _form_fields(request: Request) -> dict[str, str]:
-    content_type = request.headers.get("content-type", "").split(";", maxsplit=1)[0]
-    if content_type != "application/x-www-form-urlencoded":
-        raise HTTPException(status_code=415, detail="Unsupported form encoding.")
-    body = await request.body()
-    if len(body) > _MAX_FORM_BYTES:
-        raise HTTPException(status_code=413, detail="Form data is too large.")
-    try:
-        parsed = parse_qs(
-            body.decode("utf-8"),
-            keep_blank_values=True,
-            max_num_fields=16,
-            strict_parsing=False,
-        )
-    except (UnicodeDecodeError, ValueError) as error:
-        raise HTTPException(status_code=400, detail="Invalid form data.") from error
-    if any(len(values) != 1 for values in parsed.values()):
-        raise HTTPException(status_code=400, detail="Duplicate form fields are not allowed.")
-    return {key: values[0] for key, values in parsed.items()}
 
 
 def _csrf_or_forbidden(record: LoginSession | None, submitted_token: str | None) -> None:
@@ -134,7 +112,7 @@ async def login(
     request: Request,
     database: Annotated[Session, Depends(get_session)],
 ):
-    form = await _form_fields(request)
+    form = await read_form_fields(request)
     email = form.get("email", "")
     password = form.get("password", "")
     csrf_token = form.get("csrf_token")
@@ -173,7 +151,7 @@ async def logout(
     login_session: Annotated[LoginSession, Depends(get_authenticated_session)],
     database: Annotated[Session, Depends(get_session)],
 ):
-    _csrf_or_forbidden(login_session, (await _form_fields(request)).get("csrf_token"))
+    _csrf_or_forbidden(login_session, (await read_form_fields(request)).get("csrf_token"))
     revoke_session(database, login_session)
     response = RedirectResponse("/auth/login", status_code=303)
     response.delete_cookie(
@@ -212,7 +190,7 @@ async def create_invite(
     login_session: Annotated[LoginSession, Depends(get_authenticated_session)],
     database: Annotated[Session, Depends(get_session)],
 ):
-    form = await _form_fields(request)
+    form = await read_form_fields(request)
     _csrf_or_forbidden(login_session, form.get("csrf_token"))
     try:
         invitation_token, _invitation = create_invitation(database, creator=admin)
@@ -280,7 +258,7 @@ async def register(
     request: Request,
     database: Annotated[Session, Depends(get_session)],
 ):
-    form = await _form_fields(request)
+    form = await read_form_fields(request)
     token = form.get("token", "")
     email = form.get("email", "")
     password = form.get("password", "")
