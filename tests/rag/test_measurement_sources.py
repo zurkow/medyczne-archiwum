@@ -26,7 +26,7 @@ class _CapturingGenerator:
         self.calls = 0
         self.prompt = ""
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, citation_ids) -> str:
         self.calls += 1
         self.prompt = prompt
         return json.dumps(
@@ -187,7 +187,7 @@ def test_measurement_note_is_passed_as_untrusted_data_not_an_instruction(
         model="bielik-1.5b-v3.0-instruct",
         request=capture_request,
     )
-    model_client.generate(generator.prompt)
+    model_client.generate(generator.prompt, citation_ids=["ok"])
 
     assert captured_payload["messages"][0] == {
         "role": "system",

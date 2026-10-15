@@ -1,5 +1,6 @@
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from time import perf_counter
@@ -90,7 +91,7 @@ class LMStudioClient:
         self.timeout = timeout
         self._request = request or self._request_local_service
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, citation_ids: Sequence[str]) -> str:
         payload = {
             "model": self.model,
             "messages": [
@@ -110,9 +111,10 @@ class LMStudioClient:
                         "type": "object",
                         "properties": {
                             "answer": {"type": "string"},
+                            # Constrained decoding: small models cannot misspell source IDs.
                             "citations": {
                                 "type": "array",
-                                "items": {"type": "string"},
+                                "items": {"type": "string", "enum": list(citation_ids)},
                             },
                         },
                         "required": ["answer", "citations"],
@@ -165,7 +167,9 @@ class AnswerService:
 
         prompt = build_prompt(question.strip(), sources)
         try:
-            model_response = self.generator.generate(prompt)
+            model_response = self.generator.generate(
+                prompt, citation_ids=[source.citation_id for source in sources]
+            )
         except Exception as error:
             logger.warning(
                 "assistant_generation_failed request_id=%s code=%s duration_ms=%d",

@@ -30,9 +30,11 @@ class FakeGenerator:
     def __init__(self, response: str | Exception) -> None:
         self.response = response
         self.calls = 0
+        self.citation_ids: list[str] = []
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, citation_ids) -> str:
         self.calls += 1
+        self.citation_ids = list(citation_ids)
         if isinstance(self.response, Exception):
             raise self.response
         return self.response
@@ -141,6 +143,37 @@ def test_lm_studio_uses_json_schema_response_mode():
         model="bielik-1.5b-v3.0-instruct",
         request=request,
     )
-    client.generate("test prompt")
+    client.generate("test prompt", citation_ids=["source-1"])
 
     assert captured["response_format"]["type"] == "json_schema"
+
+
+def test_lm_studio_schema_limits_citations_to_retrieved_source_ids():
+    from medical_archive.rag.service import LMStudioClient
+
+    captured = {}
+
+    def request(endpoint, payload, timeout):
+        captured.update(payload)
+        return {"choices": [{"message": {"content": '{"answer":"ok","citations":["chunk-1"]}'}}]}
+
+    client = LMStudioClient(
+        base_url="http://127.0.0.1:1234/v1",
+        model="bielik-1.5b-v3.0-instruct",
+        request=request,
+    )
+    client.generate("test prompt", citation_ids=["chunk-1", "measurement:abc"])
+
+    schema = captured["response_format"]["json_schema"]["schema"]
+    assert schema["properties"]["citations"]["items"]["enum"] == ["chunk-1", "measurement:abc"]
+
+
+def test_answer_service_offers_only_retrieved_source_ids_to_the_model():
+    source = FakeSource()
+    generator = FakeGenerator(
+        json.dumps({"answer": "Badanie wykonano.", "citations": [source.citation_id]})
+    )
+
+    _service(FakeRetriever([source]), generator).ask(user_id=7, question="Kiedy badanie?")
+
+    assert generator.citation_ids == [source.citation_id]
