@@ -268,6 +268,10 @@ async def _restore_from_upload(
     except RestoreFailedError:
         maintenance.exit()
         return render_restore_error(500, RESTORE_FAILED)
+    except Exception:
+        # Only a failed rollback may keep the app locked; anything else must not strand it.
+        maintenance.exit()
+        raise
     maintenance.exit()
     response = RedirectResponse("/auth/login?restored=1", status_code=303)
     response.delete_cookie(

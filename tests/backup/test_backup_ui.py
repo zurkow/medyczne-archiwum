@@ -606,6 +606,27 @@ def test_failed_rollback_keeps_maintenance_active_and_startup_recovery_restores_
     assert _temp_entries(backup_data_dir) == []
 
 
+def test_unexpected_apply_error_exits_maintenance(
+    monkeypatch: pytest.MonkeyPatch,
+    backup_app,
+    admin_client,
+    extract_csrf_token,
+):
+    envelope = _export_envelope(admin_client, extract_csrf_token)
+    fields = _form_fields(admin_client, extract_csrf_token, "restore")
+
+    def fail_unexpectedly(*args, **kwargs):
+        raise RuntimeError("synthetic unexpected failure")
+
+    monkeypatch.setattr(backup_app.state.backup_service, "apply_restore", fail_unexpectedly)
+
+    with pytest.raises(RuntimeError, match="synthetic unexpected failure"):
+        _post_restore(admin_client, fields, envelope)
+
+    assert backup_app.state.maintenance.active is False
+    assert admin_client.get("/", follow_redirects=False).status_code != 503
+
+
 def test_restore_drain_timeout_returns_500_exits_maintenance_and_keeps_live_data(
     monkeypatch: pytest.MonkeyPatch,
     backup_app,
