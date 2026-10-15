@@ -1,3 +1,4 @@
+import json
 import logging
 import sqlite3
 import uuid
@@ -16,6 +17,8 @@ from medical_archive.backup.service import (
     UnsupportedBackupRevisionError,
     recover_backup_state,
 )
+from medical_archive.config import Settings
+from medical_archive.main import create_app
 from medical_archive.rag.index import load_sqlite_vec
 
 PASSWORD = "synthetic backup password"
@@ -351,3 +354,76 @@ def test_restore_and_export_never_log_passwords(
         assert WRONG_PASSWORD not in logged
     assert PASSWORD not in caplog.text
     assert WRONG_PASSWORD not in caplog.text
+
+
+def _journal(operation_id: str, state: str, **extra) -> bytes:
+    return json.dumps(
+        {
+            "journal_version": 1,
+            "operation_id": operation_id,
+            "state": state,
+            "live_documents_existed": True,
+            **extra,
+        }
+    ).encode("utf-8")
+
+
+def test_startup_recovery_of_committed_restore_only_cleans_up_and_never_rolls_back(
+    backup_service,
+    backup_data_dir: Path,
+    seeded_store,
+    make_backup_database,
+):
+    operation_dir = backup_service.new_operation_dir()
+    rollback_dir = operation_dir / "rollback"
+    (rollback_dir / "documents").mkdir(parents=True)
+    make_backup_database(("DELETE FROM documents", ())).replace(rollback_dir / "database.sqlite3")
+    (backup_data_dir / _JOURNAL_NAME).write_bytes(_journal(operation_dir.name, "committed"))
+    stale_upload = backup_service.new_operation_dir() / "upload.marchive"
+    stale_upload.write_bytes(b"synthetic stale upload")
+    stale_export = backup_data_dir / ".backup-tmp" / f"{uuid.uuid4()}.marchive"
+    stale_export.parent.mkdir()
+    stale_export.write_bytes(b"synthetic stale export")
+    database_before = seeded_store.database_path.read_bytes()
+    documents_before = _documents_listing(seeded_store.documents_dir)
+
+    recover_backup_state(
+        data_dir=backup_data_dir,
+        database_url=f"sqlite:///{seeded_store.database_path.as_posix()}",
+    )
+
+    assert seeded_store.database_path.read_bytes() == database_before
+    assert _documents_listing(seeded_store.documents_dir) == documents_before
+    assert not (backup_data_dir / _JOURNAL_NAME).exists()
+    assert list((backup_data_dir / ".restore-staging").iterdir()) == []
+    assert list((backup_data_dir / ".backup-tmp").iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "journal",
+    [
+        b"{not json",
+        b"\xff\xfe",
+        _journal(str(uuid.uuid4()), "committed", path="C:/synthetic"),
+        _journal(str(uuid.uuid4()), "rolling_forward"),
+        _journal("../documents", "prepared"),
+    ],
+    ids=["not-json", "not-utf8", "extra-key", "unknown-state", "traversal-operation-id"],
+)
+def test_app_refuses_to_start_when_restore_journal_is_invalid(tmp_path: Path, journal: bytes):
+    data_dir = tmp_path / "data"
+    documents_dir = data_dir / "documents"
+    documents_dir.mkdir(parents=True)
+    (documents_dir / str(uuid.uuid4())).write_bytes(b"synthetic live original")
+    stale_staging = data_dir / ".restore-staging" / str(uuid.uuid4())
+    stale_staging.mkdir(parents=True)
+    (data_dir / _JOURNAL_NAME).write_bytes(journal)
+    documents_before = _documents_listing(documents_dir)
+    settings = Settings(session_secret="s" * 32, data_dir=data_dir)
+
+    with pytest.raises(RestoreFailedError):
+        create_app(settings=settings)
+
+    assert (data_dir / _JOURNAL_NAME).read_bytes() == journal
+    assert _documents_listing(documents_dir) == documents_before
+    assert stale_staging.exists()

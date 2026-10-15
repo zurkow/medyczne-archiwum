@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 
 from medical_archive.backup import crypto
 from medical_archive.backup import format as archive_format
-from medical_archive.backup.service import backup_operation_lock
+from medical_archive.backup import router as backup_router
+from medical_archive.backup import service as backup_service_module
+from medical_archive.backup.service import backup_operation_lock, recover_backup_state
 from medical_archive.documents.models import DocumentPage
 from medical_archive.models import AccessGrant, Document, Measurement
 from medical_archive.rag.index import load_sqlite_vec
@@ -543,3 +545,222 @@ def test_login_notice_ignores_unexpected_restored_values(client):
     assert 'role="status"' not in injected.text
     assert "<script>" not in injected.text
     assert "alert(1)" not in injected.text
+
+
+def _fail_if_called(*args, **kwargs):
+    raise AssertionError("The live data must not be replaced.")
+
+
+def test_failed_rollback_keeps_maintenance_active_and_startup_recovery_restores_previous_data(
+    monkeypatch: pytest.MonkeyPatch,
+    backup_app,
+    admin_client,
+    extract_csrf_token,
+    auth_engine,
+    auth_session_factory,
+    backup_data_dir,
+    admin_user,
+    member_user,
+):
+    documents_dir = backup_data_dir / "documents"
+    storage_key = _seed_archive(
+        auth_session_factory, documents_dir, owner=member_user, grantee=admin_user
+    )
+    database_path = Path(auth_engine.url.database)
+    envelope = _export_envelope(admin_client, extract_csrf_token)
+    _mutate_live_store(database_path, documents_dir, storage_key)
+    fields = _form_fields(admin_client, extract_csrf_token, "restore")
+    mutated_state = _live_state(database_path)
+    mutated_documents = _documents_listing(documents_dir)
+    real_restore_documents = backup_service_module._restore_documents
+
+    def fail_swap(*args, **kwargs):
+        raise OSError("synthetic swap failure")
+
+    def fail_rollback(*args, **kwargs):
+        raise OSError("synthetic rollback failure")
+
+    monkeypatch.setattr(backup_service_module, "_swap_documents", fail_swap)
+    monkeypatch.setattr(backup_service_module, "_restore_documents", fail_rollback)
+
+    response = _post_restore(admin_client, fields, envelope)
+
+    assert response.status_code == 500
+    assert "<h1>Odtwarzanie nie powiodło się</h1>" in response.text
+    assert "/static/" not in response.text
+    assert response.headers["cache-control"] == "no-store"
+    assert "set-cookie" not in response.headers
+    assert backup_app.state.maintenance.active is True
+    assert admin_client.get("/", follow_redirects=False).status_code == 503
+    assert (backup_data_dir / ".restore-journal.json").exists()
+    assert list((backup_data_dir / ".restore-staging").glob("*/rollback/database.sqlite3"))
+
+    monkeypatch.setattr(backup_service_module, "_restore_documents", real_restore_documents)
+    recover_backup_state(
+        data_dir=backup_data_dir, database_url=f"sqlite:///{database_path.as_posix()}"
+    )
+
+    assert _live_state(database_path) == mutated_state
+    assert _documents_listing(documents_dir) == mutated_documents
+    assert not (backup_data_dir / ".restore-journal.json").exists()
+    assert _temp_entries(backup_data_dir) == []
+
+
+def test_restore_drain_timeout_returns_500_exits_maintenance_and_keeps_live_data(
+    monkeypatch: pytest.MonkeyPatch,
+    backup_app,
+    admin_client,
+    extract_csrf_token,
+    auth_engine,
+    backup_data_dir,
+):
+    database_path = Path(auth_engine.url.database)
+    envelope = _export_envelope(admin_client, extract_csrf_token)
+    fields = _form_fields(admin_client, extract_csrf_token, "restore")
+    state_before = _live_state(database_path)
+    monkeypatch.setattr(backup_router, "DRAIN_TIMEOUT_SECONDS", 0.1)
+    monkeypatch.setattr(backup_service_module, "_copy_staged_database", _fail_if_called)
+    maintenance = backup_app.state.maintenance
+    maintenance.in_flight += 1
+    try:
+        response = _post_restore(admin_client, fields, envelope)
+    finally:
+        maintenance.in_flight -= 1
+
+    assert response.status_code == 500
+    assert _alert_text(response.text, "restore-error") == (
+        "Odtwarzanie nie powiodło się i zostało wycofane. Obecne dane nie zostały zmienione."
+    )
+    assert maintenance.active is False
+    assert admin_client.get("/settings/backup").status_code == 200
+    assert _live_state(database_path) == state_before
+    assert _temp_entries(backup_data_dir) == []
+
+
+@pytest.mark.parametrize(
+    "ending",
+    [b"", b"\r\n--synthetic-boundary--\r\nsynthetic trailing data"],
+    ids=["truncated-body", "data-after-closing-boundary"],
+)
+def test_malformed_restore_upload_returns_400_and_leaves_no_partial_file(
+    admin_client, extract_csrf_token, backup_data_dir, ending
+):
+    page = admin_client.get("/settings/backup")
+    boundary = "synthetic-boundary"
+    body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="csrf_token"\r\n\r\n'
+        f"{extract_csrf_token(page.text)}\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="backup_file"; filename="{UPLOAD_FILENAME}"\r\n'
+        "Content-Type: application/octet-stream\r\n\r\n"
+    ).encode() + b"synthetic partial envelope bytes" * 64
+
+    response = admin_client.post(
+        "/settings/backup/restore",
+        content=body + ending,
+        headers={"content-type": f"multipart/form-data; boundary={boundary}"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert response.text.count('role="alert"') == 1
+    assert _alert_text(response.text, "restore-error") == RESTORE_SUMMARY
+    assert UPLOAD_FILENAME not in response.text
+    assert _temp_entries(backup_data_dir) == []
+
+
+@pytest.mark.parametrize(
+    ("statement", "message"),
+    [
+        (
+            ("UPDATE users SET is_admin = 0", ()),
+            (
+                "Nie można odtworzyć kopii: nie zawiera aktywnego konta administratora. "
+                "Obecne dane nie zostały zmienione."
+            ),
+        ),
+        (
+            ("UPDATE alembic_version SET version_num = ?", ("9999_future",)),
+            (
+                "Nie można odtworzyć kopii: została utworzona w nowszej lub nieznanej wersji "
+                "aplikacji. Zaktualizuj aplikację i spróbuj ponownie. "
+                "Obecne dane nie zostały zmienione."
+            ),
+        ),
+    ],
+    ids=["missing-administrator", "unsupported-revision"],
+)
+def test_restore_of_backup_without_admin_or_with_unknown_revision_returns_specific_422(
+    admin_client,
+    extract_csrf_token,
+    backup_data_dir,
+    seeded_store,
+    make_backup_database,
+    make_envelope,
+    statement,
+    message,
+):
+    envelope = make_envelope(
+        BACKUP_PASSWORD,
+        database_path=make_backup_database(statement),
+        files={seeded_store.storage_key: seeded_store.original},
+    )
+    state_before = _live_state(seeded_store.database_path)
+    documents_before = _documents_listing(seeded_store.documents_dir)
+
+    response = _post_restore(
+        admin_client, _form_fields(admin_client, extract_csrf_token, "restore"), envelope
+    )
+
+    assert response.status_code == 422
+    assert response.text.count('role="alert"') == 1
+    assert _alert_text(response.text, "restore-error") == message
+    assert _live_state(seeded_store.database_path) == state_before
+    assert _documents_listing(seeded_store.documents_dir) == documents_before
+    assert _temp_entries(backup_data_dir) == []
+
+
+@pytest.mark.parametrize(
+    ("case", "backup_max_bytes", "status_code", "message"),
+    [
+        (
+            "missing-original",
+            8 * 1024 * 1024,
+            500,
+            "Nie można utworzyć kopii. Szczegóły zapisano w dzienniku aplikacji.",
+        ),
+        (
+            "over-size-limit",
+            1024 * 1024,
+            413,
+            "Nie można utworzyć kopii: dane przekraczają limit 1 MiB.",
+        ),
+    ],
+    ids=["missing-original", "over-size-limit"],
+)
+def test_export_failure_renders_error_page_without_partial_download(
+    admin_client,
+    extract_csrf_token,
+    backup_data_dir,
+    seeded_store,
+    case,
+    backup_max_bytes,
+    status_code,
+    message,
+):
+    original_path = seeded_store.documents_dir / seeded_store.storage_key
+    if case == "missing-original":
+        original_path.unlink()
+    else:
+        original_path.write_bytes(b"\0" * (2 * 1024 * 1024))
+
+    response = _post_export(admin_client, _export_fields(admin_client, extract_csrf_token))
+
+    assert response.status_code == status_code
+    assert response.headers["content-type"].startswith("text/html")
+    assert "content-disposition" not in response.headers
+    assert response.text.count('role="alert"') == 1
+    assert _alert_text(response.text, "export-error") == message
+    assert BACKUP_PASSWORD not in response.text
+    assert _temp_entries(backup_data_dir) == []

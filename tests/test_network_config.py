@@ -113,6 +113,28 @@ def test_development_rejects_non_loopback_host(tmp_path: Path):
     assert "host must be a loopback address unless environment is production" in str(error.value)
 
 
+@pytest.mark.parametrize(
+    ("configured", "message"),
+    [
+        ("cert-only", "tls_cert and tls_key must be configured together"),
+        ("key-only", "tls_cert and tls_key must be configured together"),
+        ("missing-key-file", "tls_key must point to an existing private key file"),
+    ],
+)
+def test_development_rejects_incomplete_tls_pair(
+    tmp_path: Path, tls_files: tuple[Path, Path], configured: str, message: str
+):
+    cert, key = tls_files
+    tls = {
+        "cert-only": {"tls_cert": cert},
+        "key-only": {"tls_key": key},
+        "missing-key-file": {"tls_cert": cert, "tls_key": tmp_path / "missing.key"},
+    }[configured]
+
+    with pytest.raises(ValidationError, match=message):
+        Settings(testing=True, data_dir=tmp_path, **tls)
+
+
 @pytest.mark.parametrize("wildcard", ["*", "*.lan"])
 def test_allowed_hosts_rejects_wildcards(tmp_path: Path, wildcard: str):
     with pytest.raises(ValidationError):

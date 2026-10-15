@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from medical_archive.backup import crypto
 from medical_archive.backup import format as archive_format
 from medical_archive.backup.crypto import InvalidBackup
 from medical_archive.backup.format import DATABASE_NAME, MANIFEST_NAME, validate_archive
@@ -123,6 +124,55 @@ def test_archive_validation_rejects_entry_whose_hash_or_size_differs_from_manife
 
     with pytest.raises(InvalidBackup):
         validate_archive(_build_archive(mutate))
+
+
+def _set_manifest_value(key: str, value: object) -> Mutation:
+    def mutate(manifest: dict, entries: Entries) -> None:
+        manifest[key] = value
+
+    return mutate
+
+
+def _negative_database_size(manifest: dict, entries: Entries) -> None:
+    manifest["database"]["size"] = -1
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        _set_manifest_value("comment", "synthetic extra key"),
+        _set_manifest_value("archive_id", str(uuid.uuid1())),
+        _set_manifest_value("archive_id", str(uuid.uuid4()).upper()),
+        _set_manifest_value("schema_revision", "../0005"),
+        _set_manifest_value("format_version", True),
+        _negative_database_size,
+    ],
+    ids=[
+        "extra-key",
+        "non-uuid4-archive-id",
+        "non-canonical-archive-id",
+        "path-like-revision",
+        "boolean-format-version",
+        "negative-size",
+    ],
+)
+def test_archive_validation_rejects_manifest_that_is_not_strictly_well_formed(
+    mutate: Mutation,
+):
+    with pytest.raises(InvalidBackup):
+        validate_archive(_build_archive(mutate))
+
+
+def test_encrypt_refuses_payload_that_would_exceed_envelope_cap(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    cap = 256
+    monkeypatch.setattr(crypto, "MAX_ENVELOPE_BYTES", cap)
+    largest_payload = b"x" * (cap - crypto.HEADER_BYTES - 16)
+
+    assert len(crypto.encrypt(largest_payload, PASSWORD)) == cap
+    with pytest.raises(ValueError):
+        crypto.encrypt(largest_payload + b"x", PASSWORD)
 
 
 def _create_store(data_dir: Path, *, with_original: bool) -> str:
