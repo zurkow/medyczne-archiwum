@@ -257,7 +257,11 @@ Co się dzieje:
 
 Gdy interfejs WWW jest niedostępny:
 
-1. Zatrzymaj serwer.
+1. Zatrzymaj serwer. Polecenie nie sprawdza samo, czy serwer działa — odtwarzanie
+   przy uruchomionym serwerze podmieni bazę pod działającą aplikacją.
+   Na nowym komputerze (pusty katalog danych) najpierw wykonaj
+   `python -m alembic upgrade head`; bez istniejącej bazy odtwarzanie zostanie
+   przerwane.
 2. Uruchom (w tej samej konfiguracji `MEDICAL_ARCHIVE_*`, w której działa
    aplikacja):
    ```powershell
@@ -328,6 +332,11 @@ Po każdej zmianie sieci, zapory lub LM Studio:
 - Maksymalny rozmiar kopii to 1 GiB.
 - Odtwarzanie wymaga wolnego miejsca na dysku około 3 razy większego niż plik
   kopii.
+- Eksport i odtwarzanie zużywają chwilowo pamięć RAM około 2–3 razy większą niż
+  plik kopii (dla kopii 1 GiB — do około 3 GiB).
+- Ścieżka katalogu danych powinna być krótka (np. `C:rchiwum`). Pliki
+  tymczasowe kopii dodają do niej około 110 znaków, a Windows domyślnie
+  ogranicza ścieżki do 260 znaków.
 
 ## Pomiary i asystent
 
