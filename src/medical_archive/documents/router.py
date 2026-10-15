@@ -1,7 +1,9 @@
+from collections.abc import Mapping
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qs
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -37,9 +39,11 @@ from medical_archive.documents.service import (
     process_document as extract_document_text,
 )
 from medical_archive.documents.storage import (
+    MAX_UPLOAD_BYTES,
     DocumentStorageError,
     UploadError,
     read_multipart_file,
+    read_multipart_form,
 )
 from medical_archive.models import AccessGrant, LoginSession, User
 from medical_archive.web.templates import render_template
@@ -47,6 +51,15 @@ from medical_archive.web.templates import render_template
 router = APIRouter(prefix="/documents", tags=["documents"])
 _STATIC_DIRECTORY = Path(__file__).resolve().parents[1] / "static"
 _MAX_FORM_BYTES = 16_384
+
+UPLOAD_FILE_MISSING = "Wybierz plik do przesłania."
+UPLOAD_TOO_LARGE = "Plik jest za duży. Maksymalny rozmiar to 25 MB."
+UPLOAD_UNSUPPORTED_TYPE = (
+    "Dozwolone są tylko pliki PDF, JPG i PNG, a rozszerzenie musi odpowiadać zawartości pliku."
+)
+UPLOAD_INVALID_FILENAME = "Nazwa pliku jest nieprawidłowa. Zmień nazwę pliku i spróbuj ponownie."
+UPLOAD_FAILED = "Nie udało się przesłać pliku. Spróbuj ponownie."
+UPLOAD_STORAGE_FAILED = "Nie udało się zapisać dokumentu. Spróbuj ponownie."
 
 
 def _lookup_owner_id(session: Session, document_id: str) -> int | None:
@@ -228,6 +241,87 @@ def document_list_page(
     login_session: Annotated[LoginSession, Depends(get_authenticated_session)],
     session: Annotated[Session, Depends(get_session)],
 ):
+    return _render_document_list(request, session, user=user, login_session=login_session)
+
+
+@router.post("/ui", include_in_schema=False)
+async def upload_document_from_form(
+    request: Request,
+    user: Annotated[User, Depends(get_current_user)],
+    login_session: Annotated[LoginSession, Depends(get_authenticated_session)],
+    session: Annotated[Session, Depends(get_session)],
+):
+    def require_csrf(fields: Mapping[str, str]) -> None:
+        if login_session.user_id != user.id or not verify_csrf(
+            login_session, fields.get("csrf_token")
+        ):
+            raise HTTPException(status_code=403, detail="Invalid or missing CSRF token.")
+
+    def render_error(status_code: int, message: str):
+        return _render_document_list(
+            request,
+            session,
+            user=user,
+            login_session=login_session,
+            status_code=status_code,
+            upload_alert=message,
+        )
+
+    upload_dir = request.app.state.data_dir / ".upload-tmp"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    upload_path = upload_dir / str(uuid4())
+    try:
+        try:
+            form = await read_multipart_form(
+                request,
+                text_fields=frozenset({"csrf_token"}),
+                file_field="file",
+                destination=upload_path,
+                max_file_bytes=MAX_UPLOAD_BYTES,
+                before_file=require_csrf,
+            )
+        except UploadError as error:
+            return render_error(error.status_code, _upload_error_message(error.status_code))
+        if form.file_size == 0:
+            return render_error(400, UPLOAD_FILE_MISSING)
+        try:
+            document = create_document(
+                session,
+                owner_user_id=user.id,
+                data_dir=request.app.state.data_dir,
+                static_dir=_STATIC_DIRECTORY,
+                filename=form.filename,
+                declared_mime=form.content_type,
+                content=upload_path.read_bytes(),
+            )
+        except UploadError as error:
+            return render_error(error.status_code, _upload_error_message(error.status_code))
+        except (DocumentStorageError, DocumentPersistenceError):
+            return render_error(500, UPLOAD_STORAGE_FAILED)
+    finally:
+        upload_path.unlink(missing_ok=True)
+    return RedirectResponse(f"/documents/{document.id}/review", status_code=303)
+
+
+def _upload_error_message(status_code: int) -> str:
+    if status_code == 413:
+        return UPLOAD_TOO_LARGE
+    if status_code == 415:
+        return UPLOAD_UNSUPPORTED_TYPE
+    if status_code == 422:
+        return UPLOAD_INVALID_FILENAME
+    return UPLOAD_FAILED
+
+
+def _render_document_list(
+    request: Request,
+    session: Session,
+    *,
+    user: User,
+    login_session: LoginSession,
+    status_code: int = 200,
+    upload_alert: str | None = None,
+):
     csrf_token = rotate_csrf(login_session)
     session.commit()
     documents = session.scalars(
@@ -238,10 +332,12 @@ def document_list_page(
     return render_template(
         request,
         "documents.html",
+        status_code=status_code,
         title="Dokumenty",
         user=user,
         csrf_token=csrf_token,
         documents=[public_document(document) for document in documents],
+        upload_alert=upload_alert,
     )
 
 

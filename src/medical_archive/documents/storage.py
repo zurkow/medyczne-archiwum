@@ -44,6 +44,8 @@ class DocumentStorageError(Exception):
 class MultipartForm:
     fields: dict[str, str]
     file_size: int
+    filename: str = ""
+    content_type: str = "application/octet-stream"
 
 
 async def read_multipart_file(request: Request) -> tuple[str, str, bytes]:
@@ -90,6 +92,8 @@ async def read_multipart_form(
     file_handle: BinaryIO | None = None
     file_created = False
     file_size = 0
+    filename = ""
+    content_type = "application/octet-stream"
     part_count = 0
     finished = False
     try:
@@ -103,6 +107,15 @@ async def read_multipart_form(
                     if name == file_field:
                         if file_created:
                             raise UploadError(400, "Only a single uploaded file is accepted.")
+                        part_headers = _parse_part_headers(payload)
+                        disposition = Message()
+                        disposition["content-disposition"] = part_headers.get(
+                            "content-disposition", ""
+                        )
+                        filename = disposition.get_filename() or ""
+                        content_type = part_headers.get(
+                            "content-type", "application/octet-stream"
+                        ).lower()
                         before_file(MappingProxyType(dict(fields)))
                         file_handle = destination.open("xb")
                         file_created = True
@@ -139,7 +152,9 @@ async def read_multipart_form(
         if file_created:
             _remove_temporary_file(destination)
         raise
-    return MultipartForm(fields=fields, file_size=file_size)
+    return MultipartForm(
+        fields=fields, file_size=file_size, filename=filename, content_type=content_type
+    )
 
 
 def _multipart_boundary(request: Request) -> str:

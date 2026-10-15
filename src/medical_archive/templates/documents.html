@@ -2,6 +2,20 @@
 {% block content %}
   <section class="panel" aria-labelledby="documents-heading">
     <h1 id="documents-heading">Twoje dokumenty</h1>
+
+    <section aria-labelledby="upload-heading">
+      <h2 id="upload-heading">Dodaj dokument</h2>
+      <form action="/documents/ui#upload-error" method="post" enctype="multipart/form-data" class="measurement-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if upload_alert %}<p role="alert" id="upload-error">{{ upload_alert }}</p>{% endif %}
+        <label for="upload-file">Plik badania (PDF, JPG lub PNG)</label>
+        <input id="upload-file" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" required aria-describedby="upload-file-hint{% if upload_alert %} upload-error{% endif %}"{% if upload_alert %} aria-invalid="true"{% endif %}>
+        <p class="field-hint" id="upload-file-hint">Maksymalnie 25 MB. Po przesłaniu sprawdzisz rozpoznany tekst i zatwierdzisz dokument.</p>
+        <button type="submit">Prześlij dokument</button>
+      </form>
+    </section>
+
+    <h2>Lista dokumentów</h2>
     {% if documents %}
       <ul>
         {% for document in documents %}
