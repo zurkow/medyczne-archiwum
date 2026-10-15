@@ -25,7 +25,7 @@
 - Create: `tools/check_local_ai.py`
 - Modify: `pyproject.toml`, `README.md`
 
-- [ ] **Step 1: Napisz test techniczny wymaganych cech indeksu**
+- [x] **Step 1: Napisz test techniczny wymaganych cech indeksu**
 
 ```python
 # tests/rag/test_sqlite_vec_compatibility.py
@@ -55,21 +55,21 @@ def test_vec0_supports_per_user_partitioned_knn():
     assert rows == [("own",)]
 ```
 
-- [ ] **Step 2: Uruchom test na docelowym Pythonie**
+- [x] **Step 2: Uruchom test na docelowym Pythonie**
 
 Run: `py -3.12 -m pytest tests/rag/test_sqlite_vec_compatibility.py -q`
 Expected: PASS na wspieranym `sqlite-vec`. Jeśli extension nie instaluje się lub partycja nie jest filtrowana w samym zapytaniu KNN, zatrzymaj ten plan i ustal bezpieczny wariant przechowywania przed zapisywaniem dokumentów.
 
-- [ ] **Step 3: Dodaj narzędzie diagnostyczne bez wysyłania danych**
+- [x] **Step 3: Dodaj narzędzie diagnostyczne bez wysyłania danych**
 
 `tools/check_local_ai.py` sprawdza wersje Python/SQLite, ładowanie `sqlite-vec`, binarkę Tesseract i obecność polskiego pakietu oraz połączenie z `http://127.0.0.1:<port>/v1/models`. Wyświetla nazwy modeli bez treści medycznych i nie wysyła przykładowych dokumentów. Dodaj zależności `sqlite-vec` oraz `pymupdf` do opcjonalnej grupy instalacyjnej `local-ai`.
 
-- [ ] **Step 4: Zweryfikuj diagnostykę i instalację**
+- [x] **Step 4: Zweryfikuj diagnostykę i instalację**
 
 Run: `py -3.12 -m pip install -e ".[dev,local-ai]"; py -3.12 tools/check_local_ai.py`
 Expected: każda brakująca zależność jest nazwana konkretnie; brak LM Studio/Tesseract nie jest przedstawiany jako sukces. Zapisz wymagane wersje i konfigurację w README.
 
-- [ ] **Step 5: Zapisz test zgodności i diagnostykę**
+- [x] **Step 5: Zapisz test zgodności i diagnostykę**
 
 Run: `git add pyproject.toml README.md tools/check_local_ai.py tests/rag/test_sqlite_vec_compatibility.py; git commit -m "test: verify local vector search support"`
 Expected: commit zawiera sprawdzenie zgodności `sqlite-vec` i narzędzie diagnostyczne.
@@ -82,7 +82,7 @@ Expected: commit zawiera sprawdzenie zgodności `sqlite-vec` i narzędzie diagno
 - Modify: `src/medical_archive/main.py`, `src/medical_archive/models/__init__.py`
 - Create: `tests/documents/test_upload.py`, `test_access.py`
 
-- [ ] **Step 1: Dodaj failing testy dla uploadu i własności**
+- [x] **Step 1: Dodaj failing testy dla uploadu i własności**
 
 ```python
 # tests/documents/test_upload.py
@@ -111,23 +111,23 @@ def test_upload_rejects_executable_disguised_as_pdf(owner_client):
     assert response.status_code == 415
 ```
 
-- [ ] **Step 2: Potwierdź red**
+- [x] **Step 2: Potwierdź red**
 
 Run: `py -3.12 -m pytest tests/documents/test_upload.py -q`
 Expected: FAIL — trasa `/documents` jeszcze nie istnieje.
 
-- [ ] **Step 3: Zaimplementuj walidację uploadu i wewnętrzny storage key**
+- [x] **Step 3: Zaimplementuj walidację uploadu i wewnętrzny storage key**
 
 Model `Document` zawiera UUID, `owner_user_id`, `storage_key` (losowy UUID, nigdy nazwa użytkownika), original filename, MIME, byte size, document_type, document_date, processing_status i created_at. Sprawdzaj limit rozmiaru strumieniowo, sygnaturę PDF/JPEG/PNG na podstawie zawartości i rozszerzenia oraz odrzucaj nieoczekiwany format. Nie buduj ścieżki pliku z nazwy przesłanej przez klienta; zapisuj atomowo do wewnętrznego katalogu `<data_dir>/documents`, poza static/webroot. W razie błędu zapisu/INSERT usuwaj tylko plik tymczasowy utworzony przez to żądanie i zwracaj czytelny HTTP 4xx/5xx bez szczegółów systemu plików.
 
-Trasa upload zwraca `202`, status `needs_review` i publiczne metadane bez storage key. Każdy dostęp sprawdza właściciela lub wspólną politykę `visible_resource_ids` z planu 1; brak logowania kieruje do logowania, a użytkownik bez grantu i administrator dostają 404. Endpoint pobierania nigdy nie montuje katalogu plików jako zasobu statycznego.
+Trasa upload zwraca `202`, status `needs_review` i publiczne metadane bez storage key. Każdy dostęp sprawdza właściciela lub wspólną politykę z planu 1; przy budowaniu listy dostępnych dokumentów przekaż własne ID jako `owned_resource_ids` do `visible_resource_ids`, które dołączy aktywne granty. Brak logowania kieruje do logowania, a użytkownik bez grantu i administrator dostają 404. Endpoint pobierania nigdy nie montuje katalogu plików jako zasobu statycznego. Podłącz `create_grant_router` dla typu `document` z callbackiem zwracającym właściciela wyłącznie zatwierdzonego (`ready`) dokumentu; `needs_review` i pozostałe stany błędów nie mogą być współdzielone. Odbiorca jawnego grantu może tylko czytać oryginał/metadane, nigdy zatwierdzać ani zmieniać dokument.
 
-- [ ] **Step 4: Uruchom testy uploadu i izolacji**
+- [x] **Step 4: Uruchom testy uploadu i izolacji**
 
 Run: `py -3.12 -m pytest tests/documents/test_upload.py tests/documents/test_access.py -q`
 Expected: prawidłowy PDF zapisuje się prywatnie; zbyt duży plik, podrobiony format i plik obcego użytkownika są odrzucane.
 
-- [ ] **Step 5: Zapisz bezpieczny import dokumentów**
+- [x] **Step 5: Zapisz bezpieczny import dokumentów**
 
 Run: `git add src/medical_archive/documents src/medical_archive/main.py src/medical_archive/models migrations/versions/0002_documents.py tests/documents/test_upload.py tests/documents/test_access.py; git commit -m "feat: add private document uploads"`
 Expected: commit zawiera upload, prywatny storage, model i testy ACL.
@@ -140,7 +140,7 @@ Expected: commit zawiera upload, prywatny storage, model i testy ACL.
 - Modify: `src/medical_archive/documents/service.py`, `router.py`
 - Create: `tests/documents/test_extraction.py`, `test_metadata.py`, `test_approval.py`
 
-- [ ] **Step 1: Dodaj failing testy ekstrakcji, skanu i stanów importu**
+- [x] **Step 1: Dodaj failing testy ekstrakcji, skanu i stanów importu**
 
 ```python
 # tests/documents/test_approval.py
@@ -179,23 +179,23 @@ def test_ocr_failure_keeps_original_and_reports_retryable_error(owner_client, un
     assert owner_client.get(f"/documents/{unreadable_scan.id}/file").status_code == 200
 ```
 
-- [ ] **Step 2: Potwierdź red**
+- [x] **Step 2: Potwierdź red**
 
 Run: `py -3.12 -m pytest tests/documents/test_extraction.py tests/documents/test_approval.py -q`
 Expected: FAIL — ekstraktor tekstu i przejścia stanu jeszcze nie istnieją.
 
-- [ ] **Step 3: Zdefiniuj interfejs ekstraktora i przejścia stanów**
+- [x] **Step 3: Zdefiniuj interfejs ekstraktora i przejścia stanów**
 
 `TextExtractor.extract(path) -> list[ExtractedPage]` zwraca tekst z numerami stron i metodę ekstrakcji. Odczytuj warstwę tekstową PDF przez PyMuPDF; jeśli strona nie ma tekstu, renderuj ją i wywołuj lokalny Tesseract z `lang="pol"`; obrazy przechodzą ten sam OCR. Brak binarki lub pakietu językowego zgłasza jawny `ExtractionError`, a nie pusty tekst. Zapisuj tekst z numerami stron i `ocr_status`; loguj wyłącznie UUID dokumentu, kod błędu i czas, nigdy treść.
 
 `metadata.py` rozpoznaje tylko nieautorytatywne sugestie typu dokumentu (np. słowa „wynik”, „recepta”, „wypis”) i daty z tekstu OCR; użytkownik może je poprawić. Nie sugeruj konta/osoby na podstawie OCR i nigdy nie zmieniaj `owner_user_id`. Stany dokumentu: `needs_review -> indexing -> ready`, osobno `ocr_failed`/`index_failed`. Tylko właściciel może zobaczyć podgląd, zmienić typ/datę, zatwierdzić i ponowić przetwarzanie. Endpoint process ekstrahuje tekst i pozostawia dokument w `needs_review`; zatwierdzenie zapisuje metadane transakcyjnie, indeksuje i ustawia `ready`. Dodaj widoki Jinja2 listy, podglądu oryginału/tekstu i formularza ręcznej akceptacji.
 
-- [ ] **Step 4: Sprawdź pending, approve, błędy i ponowne przetwarzanie**
+- [x] **Step 4: Sprawdź pending, approve, błędy i ponowne przetwarzanie**
 
 Run: `py -3.12 -m pytest tests/documents -q`
 Expected: PDF z tekstem zwraca strony; fixture obrazu używa atrapowego adaptera OCR; akceptacja uruchamia indeksowanie; błąd i ponowienie nie gubią oryginału ani niezatwierdzonego tekstu.
 
-- [ ] **Step 5: Zapisz ekstrakcję i zatwierdzany import**
+- [x] **Step 5: Zapisz ekstrakcję i zatwierdzany import**
 
 Run: `git add src/medical_archive/documents migrations/versions/0003_document_text.py src/medical_archive/templates tests/documents; git commit -m "feat: add local document text extraction"`
 Expected: commit zawiera ekstrakcję lokalną, OCR, podgląd i workflow akceptacji.
@@ -258,7 +258,7 @@ Expected: commit zawiera indeks per użytkownik, propagację grantów i test izo
 - Create: `src/medical_archive/templates/chat.html`
 - Create: `tests/rag/test_retrieval.py`, `test_answer.py`
 
-- [ ] **Step 1: Dodaj failing testy braku danych, cytowań i wycieku**
+- [x] **Step 1: Dodaj failing testy braku danych, cytowań i wycieku**
 
 ```python
 # tests/rag/test_answer.py
@@ -281,30 +281,30 @@ def test_no_relevant_source_returns_explicit_no_data_without_calling_generator(
     assert generator.calls == 0
 ```
 
-- [ ] **Step 2: Uruchom test i potwierdź brak serwisu**
+- [~] **Step 2: Uruchom test i potwierdź brak serwisu** — początkowego RED nie odtworzono, ponieważ implementacja i testy Task 5 były już obecne w worktree; test regresyjny trybu JSON Schema wykonano później w osobnym cyklu RED/GREEN.
 
 Run: `py -3.12 -m pytest tests/rag/test_retrieval.py tests/rag/test_answer.py -q`
 Expected: FAIL — handler asystenta nie istnieje.
 
-- [ ] **Step 3: Zaimplementuj retrieval z ACL przed modelem**
+- [x] **Step 3: Zaimplementuj retrieval z ACL przed modelem**
 
-`retrieval.py` otrzymuje aktualnego user ID, tworzy embeddings pytania przez model embeddingowy i wyszukuje wyłącznie w jego `vec0` partition. Dopiero zwrócone opaque chunk IDs są mapowane na metadata i ponownie sprawdzane przez `visible_resource_ids`; jakikolwiek chunk spoza ACL jest odrzucany i nie trafia do promptu. Ustal minimalny score/relevance threshold w konfiguracji i zwracaj no-data bez generacji poniżej progu.
+`retrieval.py` otrzymuje aktualnego user ID, ustala widoczne zatwierdzone dokumenty przez `visible_resource_ids` z ID własnych rekordów oraz grantów, tworzy embeddings pytania przez model embeddingowy i wyszukuje wyłącznie w jego `vec0` partition. Dopiero zwrócone opaque chunk IDs są mapowane na metadata i ponownie sprawdzane wśród widocznych dokumentów; jakikolwiek chunk spoza ACL jest odrzucany i nie trafia do promptu. Ustal minimalny score/relevance threshold w konfiguracji i zwracaj no-data bez generacji poniżej progu.
 
 `prompt.py` nadaje dokumentom rolę niezaufanego cytowanego materiału, wymaga odpowiedzi po polsku tylko z kontekstu albo jawnego braku źródeł, zabrania diagnozy/zmian leków/leczenia i nakazuje zwracać identyfikatory cytowań. `service.py` weryfikuje zwrócone ID cytowań jako podzbiór źródeł dostarczonych promptowi; wyświetlane źródło jest budowane z DB przez aplikację, nie z tekstu modelu. Nieważny JSON, obce ID, brak modelu lub timeout dają jawny błąd, a nie odpowiedź zastępczą.
 
 `LMStudioClient` ma konfigurowalne loopback URL/model names, krótki timeout dla embeddingów i konfigurowalny timeout generacji; odrzuca URL spoza localhost, wyłącza retry dla generacji, nie loguje promptów, loguje tylko typ błędu/latencję/ID request. Umożliwiaj wstrzyknięcie atrap w testach.
 
-- [ ] **Step 4: Uruchom testy asystenta i pełny zestaw**
+- [x] **Step 4: Uruchom testy asystenta i pełny zestaw**
 
 Run: `py -3.12 -m pytest tests/rag tests/documents -q`
 Expected: cytowanie otwiera stronę źródłową; obce ID jest odrzucone; no-data nie wywołuje Bielika; brak modelu wyświetla błąd.
 
-- [ ] **Step 5: Manualnie sprawdź LM Studio na materiałach przykładowych**
+- [x] **Step 5: Manualnie sprawdź LM Studio na materiałach przykładowych** — diagnostyka potwierdziła Bielik i Nomic; syntetyczny, nieidentyfikujący PDF przeszedł lokalnie ekstrakcję tekstu, indeksowanie, retrieval i odpowiedź z cytowaniem. Tesseract i polski pakiet językowy pozostają niedostępne, więc OCR skanów nie został zweryfikowany.
 
 Run: `py -3.12 tools/check_local_ai.py; py -3.12 -m pytest -q; py -3.12 -m ruff check .`
 Expected: diagnostyka potwierdza embedding model oraz Bielika lokalnie; testy przechodzą; weryfikacja przykładowym, nieidentyfikującym PDF-em zapisuje trafność retrieval i czas odpowiedzi bez zachowania tekstu/treści w logach.
 
-- [ ] **Step 6: Zapisz asystenta z weryfikowanymi cytowaniami**
+- [x] **Step 6: Zapisz asystenta z weryfikowanymi cytowaniami**
 
 Run: `git add src/medical_archive/rag src/medical_archive/main.py src/medical_archive/documents/service.py src/medical_archive/templates/chat.html tests/rag; git commit -m "feat: add source-grounded local assistant"`
 Expected: commit zawiera ACL retrieval, adapter LM Studio, kontrolę cytowań i testy asystenta.

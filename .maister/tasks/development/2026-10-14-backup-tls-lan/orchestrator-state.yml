@@ -1,0 +1,66 @@
+orchestrator:
+  started_phase: phase-1
+  completed_phases: [phase-1, phase-2, phase-4, phase-5, phase-7, phase-8, phase-10, phase-11, phase-13, phase-14]
+  failed_phases: []
+  auto_fix_attempts: {phase-1: 0, phase-2: 0, phase-5: 0, phase-7: 0, phase-8: 0, phase-11: 0}
+  options:
+    spec_audit_enabled: false
+    skip_test_suite: true
+    e2e_enabled: false
+    user_docs_enabled: true
+    code_review_enabled: false
+    pragmatic_review_enabled: false
+    reality_check_enabled: true
+    production_check_enabled: false
+  created: 2026-10-14T00:00:00Z
+  updated: 2026-10-15T00:00:00Z
+  task_path: .maister/tasks/development/2026-10-14-backup-tls-lan
+task:
+  title: Implement plan 4 - encrypted backup/restore, TLS and LAN-only bind
+  description: >
+    Implement plan 4 (docs/superpowers/plans/2026-10-13-backup-i-lan.md): encrypted backup format
+    AES-256-GCM+scrypt with roundtrip, safe non-destructive restore + admin backup UI, TLS and
+    LAN-only bind with fail-closed production config, release checks and restore instructions.
+    tests/backup/test_crypto.py and test_roundtrip.py already exist (untracked).
+  status: completed
+  tags: [security, backup, tls]
+  priority: high
+task_context:
+  risk_level: high
+  clarifications_resolved: true
+  scope_expanded: false
+  architecture_decision: decided-in-phase-2
+  tech_clarified: true
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: true
+  project_context:
+    index_path: .maister/docs/INDEX.md
+    project_doc_paths:
+      - .maister/docs/project/vision.md
+      - .maister/docs/project/roadmap.md
+      - .maister/docs/project/tech-stack.md
+      - .maister/docs/project/architecture.md
+  plan_reference: docs/superpowers/plans/2026-10-13-backup-i-lan.md
+  phase_summaries:
+    codebase_analysis: {key_files: [src/medical_archive/config.py, src/medical_archive/main.py, src/medical_archive/db.py, src/medical_archive/documents/storage.py, src/medical_archive/auth/router.py, tests/backup/test_crypto.py, tests/backup/test_roundtrip.py, tests/conftest.py], primary_language: python, summary: "Nothing from plan 4 exists; complex/high risk: live-data restore on Windows, multipart parser with text fields, Settings fail-open to fail-closed. Existing tests/backup are source of truth."}
+    clarifications: [own streaming multipart parser with text-field allow-list, one-shot v1 envelope capped at 1 GiB, wipe all sessions after restore, offline CLI restore behind restore-backup.ps1]
+    gap_analysis: {integration_points: [main.create_app, __main__.serve, config.Settings, db.reset_database_engine, documents/storage multipart parser, auth CSRF/require_admin/verify_password, base.html nav, backup.html, rag.index.load_sqlite_vec, backup/restore.py CLI, preflight module, pyproject/.gitignore/README], summary: "Plan 4 entirely missing: new backup package + offline restore CLI, two-phase live restore on Windows, Settings/create_app fail-open to fail-closed, TLS/LAN serve, importable preflight, 3 PS scripts, README runbook. 3 critical + 12 important decisions."}
+    scope_clarifications: {scope_expanded: false, summary: "Restore via SQLite backup API copy + documents dir rename + startup journal; upgrade staged older-revision backups; python -m medical_archive serve(); all 12 important defaults accepted (see analysis/scope-clarifications.md)."}
+    ui_mockups: {components_designed: [templates/backup.html, templates/maintenance.html, base.html nav link, login.html restored notice, ~45 lines app.css], summary: "Single-column admin page extending base.html: export form then restore danger zone; error catalogue with identical 422 text; standalone maintenance page; CSRF field first for streaming parser; 303 to /auth/login?restored=1 with fixed notice."}
+    specification: {summary: "17 requirements; new backup package (crypto/format/service/maintenance/router/restore CLI), backup-API live swap + documents rename + journal (prepared->database_replaced->documents_replaced->committed, rollback-only recovery), fail-closed Settings + serve(), TrustedHost, importable preflight, 3 PS scripts, Polish runbook; ~40 new tests in 6 groups; sqlite-vec moved to runtime deps."}
+    architecture_decision: {decision: null, summary: null}
+    implementation: {summary: "10 groups, 65 steps, 10 commits 6e4148e..959beba on feat/plan-4-backup-tls; 206 tests passing (from 111); ruff clean; protected tests unchanged; no product bugs from gap tests. Pending owner: LAN/phone HTTPS, outside-LAN port, LM Studio LAN check."}
+verification_context:
+  last_status: passed_with_issues
+  issues_found: []
+  fixes_applied: ["L1 always exit maintenance on unexpected apply errors (6b15cf1)"]
+  decisions_made: ["user deferred V1 cross-process CLI lock, V2 empty-data-dir restore, L3 fixture data_dir, L4 inert noqa"]
+  reverify_count: 0
+implementation_context:
+  branch: feat/plan-4-backup-tls
+  commit_policy: "One scoped Conventional Commit per task group on feat/plan-4-backup-tls. Stage only that group's files explicitly (never git add -A). Do not stage the user's pre-existing uncommitted edits (README.md lines not written by the group, docs/superpowers/plans/*.md, work-log.md), .idea/, .maister/ or CLAUDE.md. End messages with: Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+  task_groups: 10
