@@ -65,7 +65,7 @@ This document describes the technology choices and rationale for **Medyczne Arch
 None — runs directly on the Windows host.
 
 ### CI/CD
-None configured.
+GitHub Actions: `CI` (`.github/workflows/ci.yml`) runs Ruff, pytest and Playwright screenshots (`tools/capture_screenshots.py`) on Ubuntu with Python 3.12 for every pull request and push to `main`, and posts results with screenshots as a PR comment; `Claude` (`.github/workflows/claude.yml`) runs Claude Code on issues labelled `claude` and on `@claude` comments, and opens pull requests.
 
 ### Hosting
 Single home computer, served on the local network only. HTTPS/TLS (mkcert certificates) and LAN-only binding are enforced by the production profile (plan 4). Host disk encryption (e.g. BitLocker) is recommended by the spec.

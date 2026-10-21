@@ -99,6 +99,45 @@ ostrzeżeniem. Na koniec wypisuje `Release checks passed`. Kontrola wstępna
 sprawdza bazę wskazaną przez bieżące zmienne `MEDICAL_ARCHIVE_*`, dlatego uruchamiaj
 skrypt w tej samej konfiguracji, w której działa aplikacja.
 
+### Zrzuty ekranu (Playwright)
+
+Skrypt uruchamia tymczasowy serwer na loopback z pustą bazą, fikcyjnym kontem
+administratora i przykładowymi pomiarami, a następnie zapisuje zrzuty
+głównych stron w wersji desktop i mobile:
+
+```powershell
+python -m pip install -e ".[dev,screenshots]"
+python -m playwright install chromium
+python tools\capture_screenshots.py --output screenshots
+```
+
+Dodatkowe strony dodasz parametrem `--page /sciezka` (można powtarzać).
+Katalog `screenshots/` jest ignorowany przez git.
+
+### GitHub Actions
+
+- **CI** (`.github/workflows/ci.yml`) — przy każdym pull requeście i pushu do
+  `main` uruchamia `ruff check`, `ruff format --check`, `pytest` i zrzuty
+  Playwright. W pull requeście publikuje zrzuty na gałęzi `ci-screenshots` i
+  dodaje (lub aktualizuje) komentarz z wynikami i podglądem stron.
+- **Claude** (`.github/workflows/claude.yml`) — oznaczenie issue etykietą
+  `claude` uruchamia Claude Code, który implementuje zmianę, uruchamia testy i
+  zrzuty, a następnie otwiera pull request. Komentarz z `@claude` w issue lub
+  pull requeście (od właściciela lub współpracownika) zleca poprawki.
+
+Jednorazowa konfiguracja repozytorium:
+
+1. Zainstaluj aplikację [Claude GitHub App](https://github.com/apps/claude) w
+   repozytorium.
+2. Wygeneruj token poleceniem `claude setup-token` i zapisz go jako sekret
+   repozytorium `CLAUDE_CODE_OAUTH_TOKEN` (Settings → Secrets and variables →
+   Actions).
+3. Utwórz etykietę `claude` (Issues → Labels).
+4. W Settings → Actions → General ustaw „Workflow permissions” na „Read and
+   write permissions” (potrzebne do publikacji zrzutów i komentarza).
+
+Zrzuty i treści issue/PR nie mogą zawierać prawdziwych danych medycznych.
+
 ## 2. Uruchomienie w sieci LAN (HTTPS)
 
 W sieci LAN aplikacja działa wyłącznie przez HTTPS, na jawnym prywatnym adresie

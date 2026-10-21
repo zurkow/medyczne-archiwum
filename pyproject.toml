@@ -29,6 +29,9 @@ dev = [
 local-ai = [
     "pymupdf",
 ]
+screenshots = [
+    "playwright",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
