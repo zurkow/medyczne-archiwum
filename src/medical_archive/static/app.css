@@ -255,6 +255,50 @@ button.button-secondary:hover {
   font-weight: 650;
 }
 
+.bmi-band-underweight {
+  fill: #dbe9fb;
+}
+
+.bmi-band-normal {
+  fill: #cdeccf;
+}
+
+.bmi-band-overweight {
+  fill: #fde7c4;
+}
+
+.chart-point.bmi-point-normal {
+  fill: #1b6e2a;
+}
+
+.chart-point.bmi-point-underweight {
+  fill: #174ea6;
+}
+
+.chart-point.bmi-point-overweight {
+  fill: #a85a00;
+}
+
+.bmi-summary {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  border-left: 0.4rem solid #526174;
+  background: #f3f6fa;
+}
+
+.bmi-summary.bmi-normal {
+  border-left-color: #1b6e2a;
+  background: #e3f4e5;
+}
+
+.bmi-summary.bmi-underweight {
+  border-left-color: #174ea6;
+}
+
+.bmi-summary.bmi-overweight {
+  border-left-color: #a85a00;
+}
+
 .table-scroll {
   max-width: 100%;
   overflow-x: auto;
