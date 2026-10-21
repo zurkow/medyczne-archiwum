@@ -16,6 +16,7 @@ from medical_archive.measurements.router import grant_router as measurement_gran
 from medical_archive.measurements.router import router as measurements_router
 from medical_archive.rag.router import router as assistant_router
 from medical_archive.web.router import router as web_router
+from medical_archive.weight.router import router as weight_router
 
 _STATIC_DIRECTORY = Path(__file__).resolve().parent / "static"
 
@@ -44,6 +45,7 @@ def create_app(*, testing: bool = False, settings: Settings | None = None) -> Fa
     app.include_router(grant_router, prefix="/documents")
     app.include_router(measurements_router)
     app.include_router(measurement_grant_router, prefix="/measurements")
+    app.include_router(weight_router)
     app.include_router(assistant_router)
     app.include_router(backup_router)
     app.include_router(web_router)

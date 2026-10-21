@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from medical_archive.auth.service import create_first_admin
 from medical_archive.db import create_database
 from medical_archive.measurements.service import create_measurement
+from medical_archive.weight.service import add_entry, set_height_cm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ADMIN_EMAIL = "admin@example.test"
@@ -33,6 +34,7 @@ DEFAULT_PAGES = (
     "/",
     "/documents/ui",
     "/measurements/ui",
+    "/weight/ui",
     "/assistant/ui",
     "/auth/invite",
     "/settings/backup",
@@ -79,6 +81,14 @@ def _prepare_database(database_url: str) -> None:
                     unit="kg",
                     measured_at=measured_at,
                     note=None,
+                )
+            set_height_cm(session, owner_user_id=admin.id, height_cm=Decimal(178))
+            for offset, weight in enumerate(["88.2", "85.9", "83.4", "80.6", "77.8"]):
+                add_entry(
+                    session,
+                    owner_user_id=admin.id,
+                    weight_kg=Decimal(weight),
+                    measured_on=(now - timedelta(days=28 - 7 * offset)).date(),
                 )
     finally:
         engine.dispose()

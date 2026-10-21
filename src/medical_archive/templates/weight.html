@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="panel" aria-labelledby="weight-heading">
+    <h1 id="weight-heading">Waga</h1>
+    <p>Wpisy wagi są prywatne i widoczne wyłącznie dla Ciebie.</p>
+
+    {% if error %}
+      <p role="alert">{{ error }}</p>
+    {% endif %}
+
+    <section aria-labelledby="bmi-heading">
+      <h2 id="bmi-heading">BMI</h2>
+      {% if latest and latest.bmi is not none %}
+        <p class="bmi-summary bmi-{{ latest.category.key }}">
+          Ostatnie BMI: <strong>{{ latest.bmi }}</strong> — {{ latest.category.label }}
+          (waga {{ latest.weight_kg }} kg, wzrost {{ height_cm }} cm)
+        </p>
+      {% elif height_cm is none %}
+        <p>Podaj wzrost, aby obliczyć BMI.</p>
+      {% else %}
+        <p>Dodaj wpis wagi, aby obliczyć BMI.</p>
+      {% endif %}
+
+      {% if chart %}
+        <figure class="trend-figure" aria-labelledby="bmi-chart-caption">
+          <figcaption id="bmi-chart-caption">BMI w czasie z zaznaczonymi przedziałami</figcaption>
+          <svg
+            class="trend-chart"
+            viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+            role="img"
+            aria-labelledby="bmi-chart-title bmi-chart-description"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title id="bmi-chart-title">BMI w czasie</title>
+            <desc id="bmi-chart-description">
+              Oś pozioma przedstawia datę od {{ chart.first_label }} do {{ chart.last_label }}.
+              Oś pionowa przedstawia BMI od {{ chart.axis_minimum }} do {{ chart.axis_maximum }}.
+              Tło dzieli się na przedziały: niedowaga (BMI poniżej 18,5), BMI prawidłowe (18,5–24,9)
+              oraz nadwaga (BMI od 25). Dokładne dane są dostępne w tabeli poniżej.
+            </desc>
+            {% for band in chart.bands %}
+              <rect
+                class="bmi-band bmi-band-{{ band.category.key }}"
+                x="{{ chart.left }}"
+                y="{{ band.y }}"
+                width="{{ chart.right - chart.left }}"
+                height="{{ band.height }}"
+              />
+              <text x="{{ chart.right - 6 }}" y="{{ band.y + 16 }}" text-anchor="end" class="chart-label">
+                {{ band.category.label }} ({{ band.range }})
+              </text>
+            {% endfor %}
+            <line x1="{{ chart.left }}" y1="{{ chart.top }}" x2="{{ chart.left }}" y2="{{ chart.bottom }}" class="chart-axis" />
+            <line x1="{{ chart.left }}" y1="{{ chart.bottom }}" x2="{{ chart.right }}" y2="{{ chart.bottom }}" class="chart-axis" />
+            <text x="8" y="{{ chart.top + 4 }}" class="chart-label">{{ chart.axis_maximum }}</text>
+            <text x="8" y="{{ chart.bottom }}" class="chart-label">{{ chart.axis_minimum }}</text>
+            <text x="{{ chart.left }}" y="258" class="chart-label">{{ chart.first_label }}</text>
+            <text x="{{ chart.right }}" y="258" text-anchor="end" class="chart-label">{{ chart.last_label }}</text>
+            <text x="350" y="288" text-anchor="middle" class="chart-axis-title">Data pomiaru</text>
+            <text x="18" y="150" text-anchor="middle" transform="rotate(-90 18 150)" class="chart-axis-title">BMI</text>
+            {% if chart.points|length > 1 %}
+              <polyline
+                class="chart-line"
+                points="{% for point in chart.points %}{{ point.x }},{{ point.y }}{% if not loop.last %} {% endif %}{% endfor %}"
+                fill="none"
+              />
+            {% endif %}
+            {% for point in chart.points %}
+              <circle class="chart-point bmi-point-{{ point.category.key }}" cx="{{ point.x }}" cy="{{ point.y }}" r="5">
+                <title>{{ point.label }}: BMI {{ point.bmi }} — {{ point.category.label }}</title>
+              </circle>
+            {% endfor %}
+          </svg>
+        </figure>
+      {% endif %}
+    </section>
+
+    <section aria-labelledby="height-heading">
+      <h2 id="height-heading">Wzrost</h2>
+      <form action="/weight/height" method="post" class="measurement-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="height-cm">Wzrost (cm)</label>
+        <input id="height-cm" name="height_cm" inputmode="decimal" value="{{ height_cm if height_cm is not none else '' }}" required>
+        <button type="submit">Zapisz wzrost</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="add-weight-heading">
+      <h2 id="add-weight-heading">Dodaj wagę</h2>
+      <form action="/weight/ui" method="post" class="measurement-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="weight-kg">Waga (kg)</label>
+        <input id="weight-kg" name="weight_kg" inputmode="decimal" required>
+        <label for="measured-on">Data</label>
+        <input id="measured-on" name="measured_on" type="date" value="{{ today }}" max="{{ today }}" required>
+        <button type="submit">Dodaj wagę</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="weight-history-heading">
+      <h2 id="weight-history-heading">Historia wagi</h2>
+      {% if rows %}
+        <div class="table-scroll">
+          <table>
+            <caption>Do {{ max_entries }} najnowszych wpisów wagi, od najnowszego</caption>
+            <thead>
+              <tr>
+                <th scope="col">Data</th>
+                <th scope="col">Waga (kg)</th>
+                <th scope="col">BMI</th>
+                <th scope="col">Przedział</th>
+                <th scope="col">Zarządzanie</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                <tr>
+                  <td>{{ row.measured_on.isoformat() }}</td>
+                  <td>{{ row.weight_kg }}</td>
+                  <td>{{ row.bmi if row.bmi is not none else "—" }}</td>
+                  <td>{{ row.category.label if row.category else "—" }}</td>
+                  <td>
+                    <form action="/weight/{{ row.id }}/delete" method="post">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button type="submit" class="button-secondary">Usuń</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>Brak wpisów wagi.</p>
+      {% endif %}
+    </section>
+    <p class="medical-limitation">BMI jest wskaźnikiem orientacyjnym i nie stanowi diagnozy ani porady medycznej.</p>
+  </section>
+{% endblock %}

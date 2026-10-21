@@ -393,6 +393,14 @@ zalogowanej sesji i tokenu CSRF. Dostęp grantee jest tylko do odczytu.
 Administrator nie uzyskuje automatycznie dostępu do pomiarów, a odwołane
 uprawnienie przestaje być uwzględniane przez asystenta.
 
+Strona `/weight/ui` służy do zapisywania wagi (w kg) z datą — domyślnie
+dzisiejszą — oraz wzrostu (w cm). Na tej podstawie aplikacja automatycznie
+liczy BMI (waga / wzrost², zaokrąglone do 0,1) i pokazuje je na wykresie z
+przedziałami: niedowaga (poniżej 18,5), BMI prawidłowe (18,5–24,9, zielony) i
+nadwaga (od 25). BMI wszystkich wpisów liczone jest z aktualnie zapisanego
+wzrostu. Wpisy wagi są prywatne dla właściciela konta i nie można ich
+udostępniać; BMI jest wskaźnikiem orientacyjnym, nie diagnozą.
+
 Na stronie `/assistant/ui` można pytać o zatwierdzone dokumenty i pomiary
 dostępne zalogowanemu użytkownikowi. Pomiary są pobierane osobnym zapytaniem
 strukturalnym dla ostatnich 365 dni, wyłącznie w granicach aktualnych uprawnień;

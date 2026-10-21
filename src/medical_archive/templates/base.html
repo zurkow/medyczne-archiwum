@@ -14,7 +14,8 @@
           <a href="/" {% if request.url.path == "/" %}aria-current="page"{% endif %}>Pulpit</a>
           <a href="/documents/ui" {% if request.url.path.startswith("/documents") %}aria-current="page"{% endif %}>Dokumenty</a>
           <a href="/measurements/ui" {% if request.url.path.startswith("/measurements") %}aria-current="page"{% endif %}>Pomiary</a>
-          <a href="/assistant/ui" {% if request.url.path.startswith("/assistant") %}aria-current="page"{% endif %}>Zapytaj asystenta</a>
+          <a href="/weight/ui" {% if request.url.path.startswith("/weight") %}aria-current="page"{% endif %}>Waga</a>
+          <a href="/assistant/ui"{% if request.url.path.startswith("/assistant") %}aria-current="page"{% endif %}>Zapytaj asystenta</a>
           {% if user.is_admin %}
             <a href="/auth/invite">Zaproszenia</a>
             <a href="/settings/backup" {% if request.url.path.startswith("/settings") %}aria-current="page"{% endif %}>Kopia zapasowa</a>
