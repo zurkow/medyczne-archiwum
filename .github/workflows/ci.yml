@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,local-ai,screenshots]"
+          python -m playwright install --with-deps chromium
+
+      - name: Ruff check
+        id: lint
+        continue-on-error: true
+        run: python -m ruff check .
+
+      - name: Ruff format
+        id: format
+        continue-on-error: true
+        run: python -m ruff format --check .
+
+      - name: Pytest
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -m pytest -q 2>&1 | tee pytest-output.txt
+
+      - name: Playwright screenshots
+        id: screens
+        continue-on-error: true
+        run: python tools/capture_screenshots.py --output screenshots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: ignore
+
+      - name: Publish screenshots to the ci-screenshots branch
+        id: publish
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          steps.screens.outcome == 'success'
+        env:
+          TARGET_DIR: pr-${{ github.event.pull_request.number }}/${{ github.event.pull_request.head.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth=1 origin ci-screenshots; then
+            git worktree add publish FETCH_HEAD
+            git -C publish checkout -B ci-screenshots
+          else
+            git worktree add --orphan -b ci-screenshots publish
+          fi
+          mkdir -p "publish/$TARGET_DIR"
+          cp screenshots/*.png "publish/$TARGET_DIR/"
+          git -C publish add -A
+          git -C publish commit -m "chore: screenshots for $TARGET_DIR"
+          git -C publish push origin ci-screenshots
+          echo "dir=$TARGET_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Comment results on the pull request
+        if: >-
+          always() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        env:
+          LINT: ${{ steps.lint.outcome }}
+          FORMAT: ${{ steps.format.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          SCREENS: ${{ steps.screens.outcome }}
+          SCREENS_DIR: ${{ steps.publish.outputs.dir }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- ci-results -->';
+            const icon = (outcome) => (outcome === 'success' ? '✅' : '❌');
+            const env = process.env;
+            let pytestSummary = '';
+            if (fs.existsSync('pytest-output.txt')) {
+              const lines = fs.readFileSync('pytest-output.txt', 'utf8').trim().split('\n');
+              pytestSummary = lines[lines.length - 1];
+            }
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = [
+              marker,
+              `## Wyniki CI dla \`${sha}\``,
+              '',
+              '| Kontrola | Wynik |',
+              '| --- | --- |',
+              `| \`ruff check\` | ${icon(env.LINT)} |`,
+              `| \`ruff format --check\` | ${icon(env.FORMAT)} |`,
+              `| \`pytest\` | ${icon(env.TESTS)} ${pytestSummary.replace(/\|/g, '\\|')} |`,
+              `| Zrzuty Playwright | ${icon(env.SCREENS)} |`,
+              '',
+            ];
+            if (env.SCREENS_DIR) {
+              const files = fs.readdirSync('screenshots').filter((f) => f.endsWith('.png')).sort();
+              const base = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/raw/ci-screenshots/${env.SCREENS_DIR}`;
+              for (const viewport of ['desktop', 'mobile']) {
+                const shots = files.filter((f) => f.startsWith(`${viewport}-`));
+                if (shots.length === 0) continue;
+                body.push(`<details${viewport === 'desktop' ? ' open' : ''}><summary>Zrzuty: ${viewport}</summary>`, '');
+                for (const file of shots) {
+                  const name = file.replace(/\.png$/, '');
+                  body.push(`**${name}**`, '', `<img src="${base}/${file}" alt="${name}" width="${viewport === 'desktop' ? 640 : 240}">`, '');
+                }
+                body.push('</details>', '');
+              }
+            }
+            body.push(`[Logi i artefakty](${runUrl})`);
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body: body.join('\n') });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body: body.join('\n') });
+            }
+
+      - name: Fail when any check failed
+        if: >-
+          steps.lint.outcome != 'success' || steps.format.outcome != 'success' ||
+          steps.tests.outcome != 'success' || steps.screens.outcome != 'success'
+        run: exit 1

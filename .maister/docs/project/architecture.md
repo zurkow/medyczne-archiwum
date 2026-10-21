@@ -88,7 +88,7 @@ Each domain package exposes **services** (business rules and access checks) and 
 `pydantic-settings` with env prefix `MEDICAL_ARCHIVE_` (e.g. `MEDICAL_ARCHIVE_DATABASE_URL`, session secret, data dir, LM Studio URL/models, retrieval thresholds). Validated at startup; no default secrets in the repository. Alembic `env.py` reads the same database URL.
 
 ## Deployment Architecture
-Single Windows host, started with `python -m medical_archive` (development, loopback) or `scripts/run-lan.ps1` (production: HTTPS on a private LAN IP, fail-closed settings, preflight gate) after `alembic upgrade head` and admin bootstrap. No containers or CI; `scripts/check-release.ps1` is the local release gate. Encrypted backup/restore and the recovery runbook are documented in the Polish README.
+Single Windows host, started with `python -m medical_archive` (development, loopback) or `scripts/run-lan.ps1` (production: HTTPS on a private LAN IP, fail-closed settings, preflight gate) after `alembic upgrade head` and admin bootstrap. No containers; GitHub Actions CI runs the quality gates and Playwright screenshots on pull requests; `scripts/check-release.ps1` is the local release gate. Encrypted backup/restore and the recovery runbook are documented in the Polish README.
 
 ---
 *Based on codebase analysis performed 2026-10-14*

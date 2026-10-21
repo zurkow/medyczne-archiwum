@@ -30,3 +30,6 @@ user_files/
 certs/
 backups/
 *.marchive
+
+# Playwright screenshots (tools/capture_screenshots.py)
+screenshots/

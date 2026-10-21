@@ -40,7 +40,7 @@ Note: `tests/backup/` already exists (untracked) and imports `medical_archive.ba
 ## Technical Debt / Hardening
 - [ ] **Dependency reproducibility** — add a lock file and upper bounds for unpinned runtime deps `S`
 - [ ] **Stricter linting & typing** — extend Ruff rules (I, B, UP, S, SIM), consider mypy/pyright on `src/` `S`
-- [ ] **CI** — run pytest and `ruff check` / `ruff format --check` automatically `S`
+- [x] **CI** — run pytest and `ruff check` / `ruff format --check` automatically `S`
 - [ ] **Streamed uploads** — spool uploads to disk instead of buffering up to 25 MiB in memory `S`
 - [ ] **Housekeeping** — add `.idea/` to `.gitignore`, resolve duplicate `0002_` migration prefix, commit or clean up work-log references `S`
 
